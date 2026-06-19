@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "node server/server.js",
-    "import:org-html": "node scripts/import-org-html.mjs"
+    "import:org-html": "node scripts/import-org-html.mjs",
+    "build:pages": "node scripts/build-pages.mjs"
   },
   "engines": {
     "node": ">=20"

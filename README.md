@@ -1,6 +1,8 @@
 # 随机组题复习器
 
-一个按学科管理复习资料、随机组题出题的响应式网站。当前已把《会计信息系统复习题(2026)》HTML 版导入为独立数据层，前端通过 API 读取题库，不把数据库写死在页面里。
+一个按学科管理复习资料、随机组题出题的响应式网站。当前题库来自《会计信息系统复习题(2026)》HTML 版，数据与前端分离。
+
+线上页面通过 GitHub Pages 托管，静态页面读取 `docs/data/` 下的 JSON 数据；本地开发时也可以启动 Node API。
 
 ## 功能
 
@@ -16,12 +18,13 @@
 ## 目录结构
 
 ```text
-frontend/                  # 纯前端页面
-server/                    # 数据 API 和静态文件服务
+frontend/                  # 前端源文件
+server/                    # 本地 API 和数据文件
 server/data/subjects.json  # 学科索引
-server/data/questions/     # 每个学科的结构化题库
-server/data/raw/           # 每个学科的原文备份
-scripts/                   # 数据导入脚本
+server/data/questions/     # 结构化题库
+server/data/raw/           # 原文备份
+docs/                      # GitHub Pages 静态发布目录
+scripts/                   # 导入和构建脚本
 ```
 
 ## 本地运行
@@ -30,7 +33,7 @@ scripts/                   # 数据导入脚本
 npm start
 ```
 
-如果 PowerShell 拦截 `npm`，可以用：
+PowerShell 如拦截 `npm`，用：
 
 ```powershell
 npm.cmd start
@@ -38,22 +41,34 @@ npm.cmd start
 
 打开 `http://localhost:8787`。
 
-## 增加新学科
+## 发布到 GitHub Pages
 
-1. 在 `server/data/questions/` 新增一个题库 JSON 文件。
-2. 在 `server/data/raw/` 新增该学科的原文文本，可选。
-3. 在 `server/data/subjects.json` 增加一条学科记录。
+生成静态页面：
+
+```bash
+npm run build:pages
+```
+
+PowerShell 可用：
+
+```powershell
+npm.cmd run build:pages
+```
+
+提交并推送后，在仓库设置中启用 GitHub Pages，来源选择 `main` 分支的 `/docs` 目录。
 
 ## 从 Org 导出的 HTML 重新导入
 
 ```bash
 npm run import:org-html -- "会计信息系统复习题（2026）.html"
+npm run build:pages
 ```
 
-PowerShell 如拦截 `npm`，用：
+PowerShell 可用：
 
 ```powershell
 npm.cmd run import:org-html -- "会计信息系统复习题（2026）.html"
+npm.cmd run build:pages
 ```
 
 题目格式：
