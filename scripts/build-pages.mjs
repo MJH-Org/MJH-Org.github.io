@@ -14,4 +14,12 @@ await cp(resolve(root, 'frontend/styles.css'), resolve(docsDir, 'styles.css'));
 await cp(resolve(root, 'server/data'), resolve(docsDir, 'data'), { recursive: true });
 await writeFile(resolve(docsDir, '.nojekyll'), '', 'utf8');
 
+await cp(resolve(docsDir, 'index.html'), resolve(root, 'index.html'));
+await cp(resolve(docsDir, 'bank.html'), resolve(root, 'bank.html'));
+await cp(resolve(docsDir, 'app.js'), resolve(root, 'app.js'));
+await cp(resolve(docsDir, 'styles.css'), resolve(root, 'styles.css'));
+await cp(resolve(docsDir, '.nojekyll'), resolve(root, '.nojekyll'));
+await rm(resolve(root, 'data'), { recursive: true, force: true });
+await cp(resolve(docsDir, 'data'), resolve(root, 'data'), { recursive: true });
+
 console.log('Built GitHub Pages site in docs/');

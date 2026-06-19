@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>随机组题复习器</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body data-page="quiz">
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="title-wrap">
+          <h1>随机组题复习器</h1>
+          <p>按期末题型分布快速组卷，答案和题解在本题下直接展开。</p>
+        </div>
+        <nav class="top-nav" aria-label="页面导航">
+          <a class="active" href="index.html">做题</a>
+          <a href="bank.html">题库</a>
+        </nav>
+        <div class="badges" aria-label="题库统计">
+          <span class="badge">总题库 <strong id="totalCount">0</strong></span>
+          <span class="badge">单选 <strong id="singleCount">0</strong></span>
+          <span class="badge">多选 <strong id="multipleCount">0</strong></span>
+          <span class="badge">判断 <strong id="truefalseCount">0</strong></span>
+          <span class="badge">主观 <strong id="subjectiveCount">0</strong></span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel controls-panel" aria-label="组题设置">
+        <div class="controls exam-controls">
+          <div class="field subject-field">
+            <label for="subjectSelect">学科</label>
+            <select id="subjectSelect"></select>
+          </div>
+          <div class="field count-field">
+            <label for="countInput">随机练习数量</label>
+            <input id="countInput" type="number" min="1" step="1" value="10">
+          </div>
+          <div class="field type-field">
+            <label for="typeSelect">练习题型</label>
+            <select id="typeSelect">
+              <option value="all">全部题型</option>
+              <option value="single">单选题</option>
+              <option value="multiple">多选题</option>
+              <option value="truefalse">判断题</option>
+              <option value="short">简答题</option>
+              <option value="essay">论述题</option>
+            </select>
+          </div>
+          <div class="button-field">
+            <button class="btn btn-primary" id="examBtn" type="button">期末模拟卷</button>
+            <button class="btn btn-secondary" id="practiceBtn" type="button">随机练习</button>
+            <button class="btn btn-ghost" id="resetBtn" type="button">重置</button>
+          </div>
+          <div class="field section-field">
+            <div class="section-filter-title">知识范围</div>
+            <div id="sectionChecks" class="section-checks"></div>
+          </div>
+        </div>
+        <div id="examBlueprint" class="exam-blueprint"></div>
+        <div class="toolbar">
+          <div id="quizInfo">请选择学科后开始组题。</div>
+          <div class="progress" aria-label="答题进度"><div id="progressBar" class="progress-bar"></div></div>
+          <div id="scoreInfo">得分：0 / 0</div>
+        </div>
+      </section>
+
+      <section id="quizList" class="quiz-list" aria-live="polite"></section>
+    </main>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
