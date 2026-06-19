@@ -52,17 +52,20 @@ async function loadSubjects() {
         ? subject.sections
         : [...new Set(questions.map((item) => item.section))];
 
+      const stats = questions.reduce((counts, item) => {
+        counts[item.type] = (counts[item.type] || 0) + 1;
+        counts.total += 1;
+        return counts;
+      }, { total: 0 });
+
       return {
         id: subject.id,
         name: subject.name,
         description: subject.description,
         coverageLabel: subject.coverageLabel || `${questions.length}/${questions.length}`,
+        examDistribution: subject.examDistribution,
         sections,
-        stats: {
-          total: questions.length,
-          choice: questions.filter((item) => item.type === 'choice').length,
-          short: questions.filter((item) => item.type === 'short').length,
-        },
+        stats,
       };
     }),
   );

@@ -4,8 +4,36 @@
     "name": "会计信息系统",
     "description": "从《会计信息系统复习题(2026)》HTML版导入的结构化题库",
     "questionFile": "questions/accounting-information-systems.json",
+    "sourceQuestionFile": "source/accounting-information-systems.json",
     "rawFile": "raw/accounting-information-systems.txt",
     "coverageLabel": "96/96",
+    "examDistribution": {
+      "single": {
+        "count": 15,
+        "score": 1,
+        "label": "单选题"
+      },
+      "multiple": {
+        "count": 10,
+        "score": 1.5,
+        "label": "多选题"
+      },
+      "truefalse": {
+        "count": 15,
+        "score": 1,
+        "label": "判断题"
+      },
+      "short": {
+        "count": 9,
+        "score": 37,
+        "label": "简答题"
+      },
+      "essay": {
+        "count": 2,
+        "score": 18,
+        "label": "论述题"
+      }
+    },
     "sections": [
       "1. 会计信息系统教材客观题",
       "2. 会计信息系统教材问答题",

@@ -84,6 +84,35 @@ main {
   gap: 8px;
 }
 
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.top-nav a {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #344054;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 6px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.top-nav a.active {
+  background: #111827;
+  color: #fff;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -259,6 +288,27 @@ main {
   font-size: 13px;
 }
 
+.exam-blueprint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.blueprint-pill,
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: #344054;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .progress {
   width: 100%;
   max-width: 360px;
@@ -314,8 +364,24 @@ main {
   background: var(--purple);
 }
 
+.type-single {
+  background: #1f6feb;
+}
+
+.type-multiple {
+  background: #7c3aed;
+}
+
+.type-truefalse {
+  background: #b45309;
+}
+
 .type-short {
   background: var(--green);
+}
+
+.type-essay {
+  background: #be123c;
 }
 
 .source {
@@ -383,6 +449,16 @@ main {
   border: 1px solid var(--line);
   background: var(--surface-muted);
   color: #344054;
+}
+
+.answer-panel {
+  margin-top: 12px;
+}
+
+.explanation {
+  margin-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 12px;
 }
 
 .answer-mask {
@@ -472,6 +548,11 @@ main {
   margin-bottom: 12px;
 }
 
+.bank-search {
+  grid-template-columns: minmax(180px, 240px) 1fr 160px 180px;
+  align-items: end;
+}
+
 .footer-note {
   color: var(--muted);
   font-size: 13px;
@@ -519,6 +600,16 @@ main {
   white-space: pre-wrap;
 }
 
+.kb-options {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 10px 12px;
+}
+
 .raw {
   max-height: 560px;
   overflow: auto;
@@ -549,6 +640,10 @@ main {
     justify-content: flex-start;
   }
 
+  .top-nav {
+    order: 3;
+  }
+
   .controls {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
@@ -567,11 +662,13 @@ main {
     flex: 1 1 140px;
   }
 
-  .search {
+  .search,
+  .bank-search {
     grid-template-columns: 1fr 1fr;
   }
 
-  .search input {
+  .search input,
+  .bank-search .field:nth-child(2) {
     grid-column: 1 / -1;
   }
 }
@@ -620,7 +717,16 @@ main {
     flex-direction: column;
   }
 
-  .search {
+  .search,
+  .bank-search {
     grid-template-columns: 1fr;
+  }
+
+  .top-nav {
+    width: 100%;
+  }
+
+  .top-nav a {
+    flex: 1;
   }
 }
