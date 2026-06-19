@@ -1,0 +1,15 @@
+{
+  "name": "review-random-quiz",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Responsive subject-based random quiz website with separated frontend and data API.",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "import:org-html": "node scripts/import-org-html.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

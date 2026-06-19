@@ -1,0 +1,16 @@
+[
+  {
+    "id": "accounting-information-systems",
+    "name": "会计信息系统",
+    "description": "从《会计信息系统复习题(2026)》HTML版导入的结构化题库",
+    "questionFile": "questions/accounting-information-systems.json",
+    "rawFile": "raw/accounting-information-systems.txt",
+    "coverageLabel": "96/96",
+    "sections": [
+      "1. 会计信息系统教材客观题",
+      "2. 会计信息系统教材问答题",
+      "3. 用友U8相关问答题",
+      "4. ERPNext实验相关问答题"
+    ]
+  }
+]

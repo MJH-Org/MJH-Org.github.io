@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>随机组题复习器</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="title-wrap">
+          <h1>随机组题复习器</h1>
+          <p>按学科和知识范围，从复习资料题库中随机抽题。</p>
+        </div>
+        <div class="badges" aria-label="题库统计">
+          <span class="badge">总题库 <strong id="totalCount">0</strong></span>
+          <span class="badge">选择题 <strong id="choiceCount">0</strong></span>
+          <span class="badge">简答题 <strong id="shortCount">0</strong></span>
+          <span class="badge">知识点覆盖 <strong id="coverageCount">0/0</strong></span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel controls-panel" aria-label="组题设置">
+        <div class="controls">
+          <div class="field subject-field">
+            <label for="subjectSelect">学科</label>
+            <select id="subjectSelect"></select>
+          </div>
+          <div class="field count-field">
+            <label for="countInput">每组题目数量</label>
+            <input id="countInput" type="number" min="1" step="1" value="10">
+          </div>
+          <div class="field type-field">
+            <label for="typeSelect">题目形式</label>
+            <select id="typeSelect">
+              <option value="all">混合：选择题 + 简答题</option>
+              <option value="choice">只出选择题</option>
+              <option value="short">只出简答题</option>
+            </select>
+          </div>
+          <div class="button-field">
+            <button class="btn btn-primary" id="generateBtn" type="button">随机组题</button>
+            <button class="btn btn-ghost" id="resetBtn" type="button">重置</button>
+          </div>
+          <div class="field section-field">
+            <div class="section-filter-title">知识范围</div>
+            <div id="sectionChecks" class="section-checks"></div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div id="quizInfo">请选择学科后开始组题。</div>
+          <div class="progress" aria-label="答题进度"><div id="progressBar" class="progress-bar"></div></div>
+          <div id="scoreInfo">得分：0 / 0</div>
+        </div>
+      </section>
+
+      <section id="quizList" class="quiz-list" aria-live="polite"></section>
+
+      <div class="tabs" role="tablist" aria-label="资料视图">
+        <button class="tab-btn active" data-tab="kb" type="button" role="tab" aria-selected="true">完整知识库</button>
+        <button class="tab-btn" data-tab="raw" type="button" role="tab" aria-selected="false">原文备份</button>
+      </div>
+
+      <section id="kbTab" class="panel kb-panel" role="tabpanel">
+        <h2 class="section-title">完整知识库</h2>
+        <div class="search">
+          <input id="kbSearch" type="search" placeholder="搜索题干、答案、章节或来源">
+          <select id="kbType">
+            <option value="all">全部题型</option>
+            <option value="choice">选择题</option>
+            <option value="short">简答题</option>
+          </select>
+          <select id="kbSection"><option value="all">全部章节</option></select>
+        </div>
+        <div id="kbStats" class="footer-note"></div>
+        <div id="kbList" class="kb-list"></div>
+      </section>
+
+      <section id="rawTab" class="panel kb-panel" role="tabpanel" hidden>
+        <h2 class="section-title">原文备份</h2>
+        <p class="footer-note">这里保留复习资料原文，便于核对结构化题库。</p>
+        <pre id="rawSource" class="raw"></pre>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
