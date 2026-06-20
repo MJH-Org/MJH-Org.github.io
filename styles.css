@@ -86,14 +86,14 @@ main {
 
 .auth-panel {
   display: flex;
-  min-width: 190px;
+  min-width: 220px;
   justify-content: flex-end;
 }
 
 .auth-box {
   display: grid;
   gap: 8px;
-  width: min(270px, 100%);
+  width: min(300px, 100%);
 }
 
 .auth-form {
@@ -110,6 +110,16 @@ main {
   color: var(--text);
   padding: 7px 9px;
   font-size: 13px;
+}
+
+.auth-password-form {
+  grid-template-columns: 1fr;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 .auth-status {

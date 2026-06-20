@@ -25,6 +25,12 @@
 
 不要把 Site URL 留成 `http://localhost:3000`，否则邮件确认链接可能会回到本机空端口。
 
+然后进入 `Authentication -> Providers -> Email`：
+
+- 开启 Email provider。
+- 如果想避免邮件限额，关闭 `Confirm email`。
+- 保持邮箱密码登录可用。
+
 ## 3. 填前端配置
 
 在 Supabase 控制台进入 `Project Settings -> API`，复制：
@@ -80,7 +86,7 @@ npm.cmd run dev
 ```
 
 2. 打开 `http://localhost:8787`。
-3. 用邮箱发送登录链接。
+3. 用邮箱和密码注册，或用已有账号登录。
 4. 登录后标记一道题为简单题。
 5. 在 Supabase 的 `user_question_marks` 表中检查是否新增记录。
 6. 勾选“排除简单题”，确认随机练习不再抽到已标简单题。

@@ -39,6 +39,7 @@ const state = {
     client: null,
     user: null,
     message: '',
+    email: '',
   },
 };
 
@@ -313,21 +314,79 @@ async function setQuestionMark(questionId, markType, enabled) {
   }
 }
 
-async function signInWithEmail() {
+function setAuthMessage(message) {
+  state.auth.message = message;
+  const status = $('#authStatus');
+  if (status) status.textContent = message;
+}
+
+function getAuthCredentials() {
   const email = $('#authEmail')?.value.trim();
-  if (!email || !state.auth.client) return;
+  const password = $('#authPassword')?.value || '';
+  state.auth.email = email || state.auth.email;
 
-  state.auth.message = '正在发送登录邮件...';
-  renderAuthPanel();
+  if (!email) {
+    setAuthMessage('请输入邮箱');
+    return null;
+  }
 
-  const redirectTo = getAuthRedirectUrl();
-  const { error } = await state.auth.client.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: redirectTo },
+  if (password.length < 6) {
+    setAuthMessage('密码至少 6 位');
+    return null;
+  }
+
+  return { email, password };
+}
+
+function friendlyAuthError(error) {
+  const message = error?.message || '操作失败';
+  if (/invalid login credentials/i.test(message)) return '邮箱或密码不正确';
+  if (/email not confirmed/i.test(message)) return '邮箱还未确认，请在 Supabase 关闭邮箱确认或先完成确认';
+  if (/already registered|already exists/i.test(message)) return '这个邮箱已注册，请直接登录';
+  if (/rate limit/i.test(message)) return '请求过于频繁，请稍后再试';
+  return message;
+}
+
+async function signInWithPassword() {
+  if (!state.auth.client) return;
+  const credentials = getAuthCredentials();
+  if (!credentials) return;
+
+  setAuthMessage('正在登录...');
+
+  const { error } = await state.auth.client.auth.signInWithPassword(credentials);
+
+  if (error) {
+    setAuthMessage(`登录失败：${friendlyAuthError(error)}`);
+    return;
+  }
+
+  setAuthMessage('登录成功，正在同步标记...');
+}
+
+async function signUpWithPassword() {
+  if (!state.auth.client) return;
+  const credentials = getAuthCredentials();
+  if (!credentials) return;
+
+  setAuthMessage('正在注册...');
+
+  const { data, error } = await state.auth.client.auth.signUp({
+    email: credentials.email,
+    password: credentials.password,
+    options: { emailRedirectTo: getAuthRedirectUrl() },
   });
 
-  state.auth.message = error ? `发送失败：${error.message}` : '登录邮件已发送，请查收邮箱';
-  renderAuthPanel();
+  if (error) {
+    setAuthMessage(`注册失败：${friendlyAuthError(error)}`);
+    return;
+  }
+
+  if (data.session) {
+    setAuthMessage('注册成功，正在同步标记...');
+  } else {
+    setAuthMessage('注册成功；如果后台开启了邮箱确认，请先完成确认');
+  }
 }
 
 async function signOut() {
@@ -356,7 +415,7 @@ function renderAuthPanel() {
           <span class="auth-status">${escapeHtml(email)}</span>
           <button class="btn btn-ghost btn-small" type="button" data-action="sign-out">退出</button>
         </div>
-        <div class="auth-status">${escapeHtml(state.auth.message || '账户已连接')}</div>
+        <div class="auth-status" id="authStatus">${escapeHtml(state.auth.message || '账户已连接')}</div>
       </div>
     `;
     return;
@@ -364,11 +423,15 @@ function renderAuthPanel() {
 
   panel.innerHTML = `
     <div class="auth-box">
-      <div class="auth-form">
-        <input id="authEmail" type="email" autocomplete="email" placeholder="邮箱登录">
-        <button class="btn btn-secondary btn-small" type="button" data-action="sign-in">发送</button>
+      <div class="auth-form auth-password-form">
+        <input id="authEmail" type="email" autocomplete="email" placeholder="邮箱" value="${escapeHtml(state.auth.email)}">
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="密码">
+        <div class="auth-actions">
+          <button class="btn btn-secondary btn-small" type="button" data-action="sign-in-password">登录</button>
+          <button class="btn btn-ghost btn-small" type="button" data-action="sign-up-password">注册</button>
+        </div>
       </div>
-      <div class="auth-status">${escapeHtml(state.auth.message || '登录后同步简单题标记')}</div>
+      <div class="auth-status" id="authStatus">${escapeHtml(state.auth.message || '登录后同步简单题标记')}</div>
     </div>
   `;
 }
@@ -483,9 +546,15 @@ function bindEvents() {
     const dropdown = $('#typeDropdown');
     if (dropdown && !dropdown.contains(event.target)) closeTypeDropdown();
 
-    const signInButton = event.target.closest('[data-action="sign-in"]');
+    const signInButton = event.target.closest('[data-action="sign-in-password"]');
     if (signInButton) {
-      signInWithEmail();
+      signInWithPassword();
+      return;
+    }
+
+    const signUpButton = event.target.closest('[data-action="sign-up-password"]');
+    if (signUpButton) {
+      signUpWithPassword();
       return;
     }
 
@@ -498,9 +567,15 @@ function bindEvents() {
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeTypeDropdown();
-    if (event.key === 'Enter' && event.target?.id === 'authEmail') {
+    if (event.key === 'Enter' && ['authEmail', 'authPassword'].includes(event.target?.id)) {
       event.preventDefault();
-      signInWithEmail();
+      signInWithPassword();
+    }
+  });
+
+  document.addEventListener('input', (event) => {
+    if (event.target?.id === 'authEmail') {
+      state.auth.email = event.target.value.trim();
     }
   });
 
