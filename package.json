@@ -8,7 +8,8 @@
     "start": "node server/server.js",
     "dev": "node server/server.js",
     "import:org-html": "node scripts/import-org-html.mjs",
-    "build:pages": "node scripts/build-pages.mjs"
+    "build:pages": "node scripts/build-pages.mjs",
+    "check:supabase": "node scripts/check-supabase.mjs"
   },
   "engines": {
     "node": ">=20"

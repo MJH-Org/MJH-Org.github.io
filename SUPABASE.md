@@ -30,7 +30,13 @@
 - Project URL
 - anon / publishable key
 
-编辑 `frontend/supabase-config.js`：
+本地联调用私有配置文件，不提交到 Git：
+
+```powershell
+Copy-Item frontend/supabase-config.local.example.js frontend/supabase-config.local.js
+```
+
+编辑 `frontend/supabase-config.local.js`：
 
 ```js
 window.TIKU_SUPABASE = {
@@ -41,15 +47,21 @@ window.TIKU_SUPABASE = {
 
 只放 anon/publishable key。不要把 `service_role` key 放进前端。
 
-如果这两个字段为空，网站会自动使用本地标记模式，不会连接 Supabase。
+如果 `frontend/supabase-config.local.js` 不存在，本地开发服务器会使用 `frontend/supabase-config.js` 里的空模板，网站会自动进入本地标记模式，不会连接 Supabase。
 
-## 4. 构建
+线上发布前，确认数据库联调成功后，再把同样的 Project URL 和 publishable key 填入 `frontend/supabase-config.js` 并构建。
+
+## 4. 自检
 
 ```powershell
-npm.cmd run build:pages
+npm.cmd run check:supabase
 ```
 
-构建会把配置复制到 `docs/supabase-config.js` 和根目录 `supabase-config.js`。
+自检会检查：
+
+- 本地配置是否填写。
+- Supabase Auth 端点是否可访问。
+- `user_question_marks` 表是否已经创建。
 
 ## 5. 验证
 

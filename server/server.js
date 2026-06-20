@@ -7,6 +7,7 @@ const PORT = Number(process.env.PORT || 8787);
 const ROOT_DIR = resolve('.');
 const DATA_DIR = resolve(ROOT_DIR, 'server/data');
 const FRONTEND_DIR = resolve(ROOT_DIR, 'frontend');
+const LOCAL_SUPABASE_CONFIG = resolve(FRONTEND_DIR, 'supabase-config.local.js');
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -182,6 +183,15 @@ async function serveStatic(req, res, url) {
   if (!filePath) {
     sendError(res, 403, 'Forbidden');
     return;
+  }
+
+  if (url.pathname === '/supabase-config.js') {
+    try {
+      await access(LOCAL_SUPABASE_CONFIG);
+      filePath = LOCAL_SUPABASE_CONFIG;
+    } catch {
+      // Fall back to the checked-in empty template.
+    }
   }
 
   try {

@@ -16,6 +16,11 @@ create table if not exists public.user_question_marks (
 create index if not exists user_question_marks_lookup_idx
 on public.user_question_marks (user_id, subject_id, mark_type);
 
+grant usage on schema public to authenticated;
+grant select, insert, update, delete
+on public.user_question_marks
+to authenticated;
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql

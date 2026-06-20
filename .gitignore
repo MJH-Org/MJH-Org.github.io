@@ -6,3 +6,6 @@ Thumbs.db
 tmp/
 *.pdf
 会计信息系统复习题（2026）.html
+frontend/supabase-config.local.js
+supabase-config.local.js
+docs/supabase-config.local.js
