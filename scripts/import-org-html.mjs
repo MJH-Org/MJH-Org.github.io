@@ -59,18 +59,63 @@ function getSourceSection(number) {
   return '1. 会计信息系统教材客观题';
 }
 
+function isObjectiveNote(value) {
+  return /^(其它|其他)/.test(value.trim());
+}
+
+function collectOuterParens(value) {
+  const segments = [];
+  let depth = 0;
+  let start = -1;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === '（') {
+      if (depth === 0) start = index;
+      depth += 1;
+    } else if (char === '）' && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        segments.push(value.slice(start + 1, index).replace(/[ \t]+/g, ' ').trim());
+        start = -1;
+      }
+    }
+  }
+
+  return segments;
+}
+
+function replaceOuterParens(value, mapper) {
+  let result = '';
+  let cursor = 0;
+  let depth = 0;
+  let start = -1;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === '（') {
+      if (depth === 0) start = index;
+      depth += 1;
+    } else if (char === '）' && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        const content = value.slice(start + 1, index).replace(/[ \t]+/g, ' ').trim();
+        result += value.slice(cursor, start);
+        result += mapper(content);
+        cursor = index + 1;
+        start = -1;
+      }
+    }
+  }
+
+  return result + value.slice(cursor);
+}
+
 function makeObjectiveQuestion(text, index) {
   const promptSource = text.length > 260 ? (text.match(/^.*?。/)?.[0] ?? text) : text;
-  const answerSource = promptSource + [...text.matchAll(/（([^（）]+)）/g)]
-    .map((match) => match[1].replace(/[ \t]+/g, ' ').trim())
-    .filter((value) => value.startsWith('其它'))
-    .map((value) => `（${value}）`)
-    .join('');
-  const answerParts = [...new Set([...answerSource.matchAll(/（([^（）]+)）/g)]
-    .map((match) => match[1].replace(/[ \t]+/g, ' ').trim())
-    .filter(Boolean))];
+  const answerParts = unique(collectOuterParens(promptSource).filter((value) => !isObjectiveNote(value)));
   const prompt = answerParts.length
-    ? promptSource.replace(/（([^（）]+)）/g, (_, value) => (value.trim().startsWith('其它') ? '' : '（）'))
+    ? replaceOuterParens(promptSource, (value) => (isObjectiveNote(value) ? '' : '（）'))
     : promptSource;
 
   return {
@@ -79,6 +124,7 @@ function makeObjectiveQuestion(text, index) {
     section: '1. 会计信息系统教材客观题',
     prompt,
     answer: answerParts.length ? answerParts.join('；') : text,
+    answers: answerParts,
     source: `HTML原文 / 客观题${index + 1}`,
     knowledge: text,
   };
@@ -146,45 +192,8 @@ function unique(items) {
   return [...new Set(items.map((item) => String(item).replace(/[ \t]+/g, ' ').trim()).filter(Boolean))];
 }
 
-function sentenceHead(value, maxLength = 96) {
-  const cleaned = String(value)
-    .replace(/\*\*/g, '')
-    .replace(/[ \t]+/g, ' ')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(' ');
-  const first = cleaned.match(/^.{8,}?[。；;]/)?.[0] ?? cleaned;
-  return first.length > maxLength ? `${first.slice(0, maxLength)}...` : first;
-}
-
-function answerParts(question) {
-  const source = String(question.answer || question.knowledge || '')
-    .replace(/\*\*/g, '')
-    .replace(/参考答案/g, '')
-    .replace(/[：:]\s*/g, '：');
-  const byLine = source
-    .split(/\n|。|；|;/)
-    .map((part) => part.replace(/^[（(]?\d+[）)]?[、.．]?\s*/, '').trim())
-    .filter((part) => part.length >= 2 && part.length <= 120);
-
-  if (byLine.length >= 2) return unique(byLine);
-
-  return unique(
-    source
-      .split(/、|，|,/)
-      .map((part) => part.trim())
-      .filter((part) => part.length >= 2 && part.length <= 80),
-  );
-}
-
-function optionPool(questions, currentId) {
-  return unique(
-    questions
-      .filter((question) => question.id !== currentId)
-      .map((question) => sentenceHead(question.answer, 72))
-      .filter((option) => option.length >= 2),
-  );
+function objectiveAnswerText(question) {
+  return unique(question.answers?.length ? question.answers : [question.answer]).join('；');
 }
 
 function withOptions(correctOptions, distractors, seed, targetCount = 4) {
@@ -211,14 +220,22 @@ function makeExplanation(question) {
   return question.knowledge || `${question.prompt}\n${question.answer}`.trim();
 }
 
-function createExamQuestions(sourceQuestions) {
+function createObjectiveQuestions(sourceQuestions) {
   const generated = [];
-  const allDistractors = (question) => optionPool(sourceQuestions, question.id);
+  const combinedDistractors = (question) => unique(
+    sourceQuestions
+      .filter((item) => item.id !== question.id)
+      .map(objectiveAnswerText),
+  );
+  const partDistractors = (question) => unique(
+    sourceQuestions
+      .filter((item) => item.id !== question.id)
+      .flatMap((item) => item.answers?.length ? item.answers : [item.answer]),
+  );
 
   for (const question of sourceQuestions) {
-    const parts = answerParts(question);
-    const concise = sentenceHead(question.answer, 90);
-    const correctSingle = parts[0] || concise;
+    const parts = unique(question.answers?.length ? question.answers : [question.answer]);
+    const answerText = objectiveAnswerText(question);
 
     generated.push({
       id: `${question.id}-single`,
@@ -226,28 +243,25 @@ function createExamQuestions(sourceQuestions) {
       type: 'single',
       typeName: typeLabel('single'),
       section: question.section,
-      prompt: question.type === 'choice'
-        ? question.prompt
-        : `关于“${question.prompt}”，下列哪一项最接近参考答案要点？`,
-      options: withOptions([correctSingle], allDistractors(question), `${question.id}:single`),
-      answer: correctSingle,
+      prompt: `${question.prompt}\n下列哪一项按顺序填入空格最恰当？`,
+      options: withOptions([answerText], combinedDistractors(question), `${question.id}:single`),
+      answer: answerText,
       score: 1,
       source: question.source,
       explanation: makeExplanation(question),
       knowledge: question.knowledge,
     });
 
-    const correctMultiple = parts.length >= 2 ? parts.slice(0, Math.min(4, parts.length)) : [correctSingle, sentenceHead(question.knowledge, 80)];
-    if (unique(correctMultiple).length >= 2) {
+    if (parts.length >= 2) {
       generated.push({
         id: `${question.id}-multiple`,
         baseId: question.id,
         type: 'multiple',
         typeName: typeLabel('multiple'),
         section: question.section,
-        prompt: `关于“${question.prompt.replace(/（）/g, '___')}”，正确的说法有：`,
-        options: withOptions(correctMultiple, allDistractors(question), `${question.id}:multiple`, Math.max(4, Math.min(6, unique(correctMultiple).length + 2))),
-        answers: unique(correctMultiple),
+        prompt: `${question.prompt}\n以下哪些内容应填入原题空格？`,
+        options: withOptions(parts, partDistractors(question), `${question.id}:multiple`, Math.max(4, Math.min(6, parts.length + 2))),
+        answers: parts,
         score: 1.5,
         source: question.source,
         explanation: makeExplanation(question),
@@ -255,14 +269,14 @@ function createExamQuestions(sourceQuestions) {
       });
     }
 
-    const wrongAnswer = stableSample(allDistractors(question), 1, `${question.id}:tf`)[0] || '以上说法不正确';
+    const wrongAnswer = stableSample(combinedDistractors(question), 1, `${question.id}:tf`)[0] || '以上说法不正确';
     generated.push({
       id: `${question.id}-tf-true`,
       baseId: question.id,
       type: 'truefalse',
       typeName: typeLabel('truefalse'),
       section: question.section,
-      prompt: `判断：${question.prompt.replace(/（）/g, '___')} 的核心答案包含“${correctSingle}”。`,
+      prompt: `判断：${question.prompt} 按顺序填入“${answerText}”是正确的。`,
       options: ['正确', '错误'],
       answer: '正确',
       score: 1,
@@ -276,22 +290,30 @@ function createExamQuestions(sourceQuestions) {
       type: 'truefalse',
       typeName: typeLabel('truefalse'),
       section: question.section,
-      prompt: `判断：${question.prompt.replace(/（）/g, '___')} 的核心答案是“${wrongAnswer}”。`,
+      prompt: `判断：${question.prompt} 按顺序填入“${wrongAnswer}”是正确的。`,
       options: ['正确', '错误'],
       answer: '错误',
       score: 1,
       source: question.source,
-      explanation: `该说法错误。正确要点：${question.answer}\n\n${makeExplanation(question)}`,
+      explanation: `该说法错误。正确答案：${answerText}\n\n${makeExplanation(question)}`,
       knowledge: question.knowledge,
     });
+  }
 
+  return generated;
+}
+
+function createSubjectiveQuestions(sourceQuestions) {
+  const generated = [];
+
+  for (const question of sourceQuestions) {
     generated.push({
       id: `${question.id}-short`,
       baseId: question.id,
       type: 'short',
       typeName: typeLabel('short'),
       section: question.section,
-      prompt: question.type === 'short' ? question.prompt : `请简答：${question.prompt.replace(/（）/g, '___')}`,
+      prompt: question.prompt,
       answer: question.answer,
       score: 4,
       source: question.source,
@@ -299,28 +321,31 @@ function createExamQuestions(sourceQuestions) {
       knowledge: question.knowledge,
     });
 
-    if (question.type === 'short' || question.knowledge.length > 180) {
-      generated.push({
-        id: `${question.id}-essay`,
-        baseId: question.id,
-        type: 'essay',
-        typeName: typeLabel('essay'),
-        section: question.section,
-        prompt: `请结合复习资料，论述“${question.prompt.replace(/（）/g, '___')}”的核心内容、适用场景和学习要点。`,
-        answer: question.answer,
-        score: 9,
-        source: question.source,
-        explanation: makeExplanation(question),
-        knowledge: question.knowledge,
-      });
-    }
+    generated.push({
+      id: `${question.id}-essay`,
+      baseId: question.id,
+      type: 'essay',
+      typeName: typeLabel('essay'),
+      section: question.section,
+      prompt: question.prompt,
+      answer: question.answer,
+      score: 9,
+      source: question.source,
+      explanation: makeExplanation(question),
+      knowledge: question.knowledge,
+    });
   }
 
   return generated;
 }
 
-const questions = [...extractObjectiveQuestions(), ...extractShortQuestions()];
-const examQuestions = createExamQuestions(questions);
+const objectiveQuestions = extractObjectiveQuestions();
+const shortQuestions = extractShortQuestions();
+const questions = [...objectiveQuestions, ...shortQuestions];
+const examQuestions = [
+  ...createObjectiveQuestions(objectiveQuestions),
+  ...createSubjectiveQuestions(shortQuestions),
+];
 const rawSource = extractRawText();
 
 if (questions.length === 0) {
@@ -359,7 +384,7 @@ const subjects = [
     questionFile: 'questions/accounting-information-systems.json',
     sourceQuestionFile: 'source/accounting-information-systems.json',
     rawFile: 'raw/accounting-information-systems.txt',
-    coverageLabel: `${questions.length}/${questions.length}`,
+    coverageLabel: `${objectiveQuestions.length}道客观题 / ${shortQuestions.length}道问答题`,
     examDistribution: {
       single: { count: 15, score: 1, label: '单选题' },
       multiple: { count: 10, score: 1.5, label: '多选题' },

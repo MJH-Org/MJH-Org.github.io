@@ -6,7 +6,7 @@
     "questionFile": "questions/accounting-information-systems.json",
     "sourceQuestionFile": "source/accounting-information-systems.json",
     "rawFile": "raw/accounting-information-systems.txt",
-    "coverageLabel": "96/96",
+    "coverageLabel": "70道客观题 / 26道问答题",
     "examDistribution": {
       "single": {
         "count": 15,
