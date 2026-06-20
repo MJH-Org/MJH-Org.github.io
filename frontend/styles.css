@@ -248,11 +248,16 @@ main {
   transform: translateY(0);
 }
 
-.section-checks {
+.section-checks,
+.type-checks {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+.type-checks {
+  min-height: 44px;
 }
 
 .check-pill {
@@ -275,6 +280,11 @@ main {
   flex: 0 0 16px;
   margin: 0;
   accent-color: var(--accent);
+}
+
+.check-pill strong {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .toolbar {
@@ -546,6 +556,37 @@ main {
   grid-template-columns: 1fr 180px 180px;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.source-search {
+  grid-template-columns: minmax(180px, 260px) minmax(240px, 1fr) minmax(180px, 260px);
+}
+
+.source-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.source-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 16px;
+}
+
+.source-card h2 {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.source-text {
+  color: #344054;
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
 }
 
 .bank-search {

@@ -193,17 +193,221 @@ function unique(items) {
 }
 
 function objectiveAnswerText(question) {
-  return unique(question.answers?.length ? question.answers : [question.answer]).join('；');
+  const parts = answerPartsFor(question);
+  return parts.length ? parts.join('；') : String(question.answer || '').trim();
 }
 
-function withOptions(correctOptions, distractors, seed, targetCount = 4) {
+function answerPartsFor(question) {
+  if (Array.isArray(question.answers)) return unique(question.answers);
+  return unique([question.answer]);
+}
+
+function partSignature(value) {
+  const text = String(value);
+  return {
+    length: text.length,
+    category: partCategory(text),
+    hasNumber: /\d/.test(text),
+    hasBook: /《|》/.test(text),
+    hasSlash: /\/|\+/.test(text),
+    hasEnglish: /[A-Za-z]/.test(text),
+    tail: text.slice(-2),
+  };
+}
+
+function partCategory(text) {
+  if (/《|》/.test(text)) return 'document';
+  if (/财政|税务|审计|部门/.test(text)) return 'organization';
+  if (/阶段$/.test(text)) return 'stage';
+  if (/类科目$|科目$/.test(text)) return 'account';
+  if (/凭证|凭证录入|凭证审核|凭证修改|凭证汇总|凭证查询|凭证打印|凭证备份/.test(text)) return 'voucher';
+  if (/编码$|代码$|账套号/.test(text)) return 'code';
+  if (/方法|法$/.test(text)) return 'method';
+  if (/模块$/.test(text)) return 'module';
+  if (/系统$/.test(text)) return 'system';
+  if (/文件$/.test(text)) return 'file';
+  if (/性$/.test(text)) return 'attribute';
+  if (/度$/.test(text)) return 'metric';
+  if (/工资/.test(text)) return 'salary';
+  if (/发票/.test(text)) return 'invoice';
+  if (/核算/.test(text)) return 'accounting';
+  if (/设计/.test(text)) return 'design';
+  if (/初始化/.test(text)) return 'initialization';
+  if (/化$/.test(text)) return 'state';
+  return '';
+}
+
+function signatureDistance(a, b) {
+  const left = partSignature(a);
+  const right = partSignature(b);
+  let score = Math.abs(left.length - right.length) * 2;
+  if (left.category && right.category && left.category !== right.category) score += 18;
+  if (left.category && !right.category) score += 10;
+  if (left.category && left.category === right.category) score -= 6;
+  if (left.hasNumber !== right.hasNumber) score += 8;
+  if (left.hasBook !== right.hasBook) score += 8;
+  if (left.hasSlash !== right.hasSlash) score += 4;
+  if (left.hasEnglish !== right.hasEnglish) score += 4;
+  if (left.tail === right.tail) score -= 3;
+  return score;
+}
+
+function syntheticPartDistractors(part) {
+  const pools = [];
+  const add = (items) => pools.push(...items);
+
+  if (/类科目$/.test(part)) add(['资产类科目', '负债类科目', '共同类科目', '权益类科目', '成本类科目', '损益类科目']);
+  if (/阶段$/.test(part)) add(['单项数据处理阶段', '会计信息系统阶段', '管理信息系统阶段', '微机网络化阶段', '系统分析阶段', '系统设计阶段', '系统实施阶段', '逻辑设计阶段', '运行维护阶段']);
+  if (/凭证$/.test(part)) add(['收款凭证', '付款凭证', '转账凭证', '记账凭证', '原始凭证', '审核凭证']);
+  if (/科目$/.test(part)) add(['一级科目', '明细科目', '总账科目', '最底层科目', '会计科目', '临时开账科目']);
+  if (/编码$/.test(part)) add(['分组编码', '位数编码', '顺序编码', '科目编码', '客户编码', '存货编码']);
+  if (/方法|法$/.test(part)) add(['直接转销法', '备抵法', '先进先出法', '个别计价法', '期末加权平均法', '移动加权平均法', '红字冲销法']);
+  if (/部门$/.test(part) || part === '财政部') add(['财政部', '地方各级财政部门', '税务部门', '审计部门', '企业财务部门']);
+  if (/模块$/.test(part)) add(['初始化模块', '凭证处理模块', '系统维护模块', '报表生成模块', '数据录入模块']);
+  if (/系统$/.test(part)) add(['会计信息系统', '管理信息系统', '账务处理系统', '工资核算系统', '固定资产系统']);
+  if (/文件$/.test(part)) add(['科目文件', '凭证文件', '余额文件', '临时凭证文件', '存货结存文件']);
+  if (/性$/.test(part)) add(['独立性', '整体性', '目标性', '层次性', '一致性', '可扩展性', '安全性']);
+  if (/度$/.test(part)) add(['耦合度', '内聚度', '准确度', '完整度']);
+  if (/账|帐/.test(part)) add(['总账', '明细账', '日记账', '银行对账单', '未达账项']);
+  if (/工资/.test(part)) add(['应发工资', '实发工资', '代扣款项', '工资结算']);
+  if (/发票/.test(part)) add(['销售发票', '采购发票', '普通发票', '增值税发票']);
+  if (/核算/.test(part)) add(['客户往来核算', '供应商往来核算', '项目核算', '部门核算', '个人往来核算']);
+  if (/设计/.test(part)) add(['结构设计', '逻辑设计', '概要设计', '详细设计']);
+  if (/初始化/.test(part)) add(['系统初始化', '科目初始化', '余额初始化', '期初初始化']);
+  if (/化$/.test(part)) add(['制度化', '规范化', '标准化', '信息化', '网络化']);
+
+  return unique(pools).filter((item) => item !== part);
+}
+
+function optionDistance(parts, candidateParts) {
+  const left = unique(parts);
+  const right = unique(candidateParts);
+  if (left.length !== right.length) return 1000 + Math.abs(left.length - right.length) * 100;
+
+  return left.reduce((score, part, index) => {
+    return score + signatureDistance(part, right[index] || '');
+  }, Math.abs(objectiveAnswerText({ answers: left }).length - objectiveAnswerText({ answers: right }).length));
+}
+
+function rankedCandidates(items, scoreFor, seed) {
+  return unique(items)
+    .sort((a, b) => {
+      const score = scoreFor(a) - scoreFor(b);
+      return score || hashText(`${seed}:${a}`) - hashText(`${seed}:${b}`);
+    });
+}
+
+function similarParts(question, sourceQuestions, partIndex, limit = 12) {
+  const parts = answerPartsFor(question);
+  const current = parts[partIndex] || parts[0] || '';
+  const currentCategory = partCategory(current);
+  const generated = syntheticPartDistractors(current);
+  const samePosition = sourceQuestions
+    .filter((item) => item.id !== question.id)
+    .filter((item) => answerPartsFor(item).length === parts.length)
+    .map((item) => answerPartsFor(item)[partIndex])
+    .filter(Boolean);
+  const allParts = sourceQuestions
+    .filter((item) => item.id !== question.id)
+    .flatMap(answerPartsFor);
+  const pool = [...generated, ...samePosition, ...allParts];
+  const sameCategory = currentCategory
+    ? pool.filter((item) => partCategory(item) === currentCategory)
+    : [];
+
+  const preferred = rankedCandidates(
+    sameCategory.length >= limit ? sameCategory : pool,
+    (item) => signatureDistance(current, item),
+    `${question.id}:part:${partIndex}`,
+  ).slice(0, limit);
+
+  if (preferred.length >= limit) return preferred;
+
+  const extra = rankedCandidates(
+    pool.filter((item) => !preferred.includes(item)),
+    (item) => signatureDistance(current, item),
+    `${question.id}:part:${partIndex}:extra`,
+  ).slice(0, limit - preferred.length);
+
+  return [...preferred, ...extra];
+}
+
+function singleDistractors(question, sourceQuestions, count = 3) {
+  const parts = answerPartsFor(question);
+  const correct = objectiveAnswerText(question);
+  const wholeOptions = sourceQuestions
+    .filter((item) => item.id !== question.id)
+    .filter((item) => answerPartsFor(item).length === parts.length)
+    .map((item) => objectiveAnswerText(item));
+
+  const replacements = [];
+  parts.forEach((part, partIndex) => {
+    similarParts(question, sourceQuestions, partIndex, 8).forEach((replacement) => {
+      if (replacement === part) return;
+      const next = [...parts];
+      next[partIndex] = replacement;
+      replacements.push(next.join('；'));
+    });
+  });
+
+  if (parts.length > 1) {
+    replacements.push([...parts].reverse().join('；'));
+  }
+
+  return rankedCandidates(
+    [...replacements, ...wholeOptions].filter((item) => item !== correct),
+    (item) => optionDistance(parts, item.split('；')),
+    `${question.id}:single-distractors`,
+  ).slice(0, count);
+}
+
+function multipleDistractors(question, sourceQuestions, correctShown, count) {
+  const correctSet = new Set(correctShown);
+  const candidates = correctShown.flatMap((_, index) => similarParts(question, sourceQuestions, index, 10));
+  const fallback = sourceQuestions
+    .filter((item) => item.id !== question.id)
+    .flatMap(answerPartsFor);
+
+  return rankedCandidates(
+    [...candidates, ...fallback].filter((item) => !correctSet.has(item)),
+    (item) => Math.min(...correctShown.map((answer) => signatureDistance(answer, item))),
+    `${question.id}:multiple-distractors`,
+  ).slice(0, count);
+}
+
+function orderedOptions(correctOptions, distractors, seed, targetCount = 4) {
   const correct = unique(correctOptions);
-  const wrong = stableSample(
-    distractors.filter((item) => !correct.includes(item)),
-    Math.max(0, targetCount - correct.length),
-    seed,
-  );
-  return stableSample(unique([...correct, ...wrong]), targetCount, `${seed}:order`);
+  const wrong = unique(distractors).filter((item) => !correct.includes(item));
+  const filler = [];
+  let index = 1;
+  while (correct.length + wrong.length + filler.length < targetCount) {
+    filler.push(`以上说法不完整 ${index}`);
+    index += 1;
+  }
+  return stableSample(unique([...correct, ...wrong, ...filler]).slice(0, targetCount), targetCount, `${seed}:order`);
+}
+
+function completeStatement(question) {
+  return question.knowledge.replace(/\s+/g, ' ').trim();
+}
+
+function falseStatement(question, sourceQuestions) {
+  const parts = answerPartsFor(question);
+  const statement = completeStatement(question);
+
+  if (parts.length) {
+    const index = hashText(`${question.id}:false-index`) % parts.length;
+    const wrongPart = similarParts(question, sourceQuestions, index, 12).find((item) => !parts.includes(item));
+    if (wrongPart && wrongPart !== parts[index]) {
+      return statement.replace(parts[index], wrongPart);
+    }
+  }
+
+  if (statement.includes('不是')) return statement.replace('不是', '是');
+  if (statement.includes('不能')) return statement.replace('不能', '可以');
+  if (statement.includes('不需要')) return statement.replace('不需要', '需要');
+  if (statement.includes('是')) return statement.replace('是', '不是');
+  return '';
 }
 
 function typeLabel(type) {
@@ -222,61 +426,54 @@ function makeExplanation(question) {
 
 function createObjectiveQuestions(sourceQuestions) {
   const generated = [];
-  const combinedDistractors = (question) => unique(
-    sourceQuestions
-      .filter((item) => item.id !== question.id)
-      .map(objectiveAnswerText),
-  );
-  const partDistractors = (question) => unique(
-    sourceQuestions
-      .filter((item) => item.id !== question.id)
-      .flatMap((item) => item.answers?.length ? item.answers : [item.answer]),
-  );
 
   for (const question of sourceQuestions) {
-    const parts = unique(question.answers?.length ? question.answers : [question.answer]);
+    const parts = answerPartsFor(question);
     const answerText = objectiveAnswerText(question);
 
-    generated.push({
-      id: `${question.id}-single`,
-      baseId: question.id,
-      type: 'single',
-      typeName: typeLabel('single'),
-      section: question.section,
-      prompt: `${question.prompt}\n下列哪一项按顺序填入空格最恰当？`,
-      options: withOptions([answerText], combinedDistractors(question), `${question.id}:single`),
-      answer: answerText,
-      score: 1,
-      source: question.source,
-      explanation: makeExplanation(question),
-      knowledge: question.knowledge,
-    });
-
-    if (parts.length >= 2) {
+    if (parts.length) {
       generated.push({
-        id: `${question.id}-multiple`,
+        id: `${question.id}-single`,
         baseId: question.id,
-        type: 'multiple',
-        typeName: typeLabel('multiple'),
+        type: 'single',
+        typeName: typeLabel('single'),
         section: question.section,
-        prompt: `${question.prompt}\n以下哪些内容应填入原题空格？`,
-        options: withOptions(parts, partDistractors(question), `${question.id}:multiple`, Math.max(4, Math.min(6, parts.length + 2))),
-        answers: parts,
-        score: 1.5,
+        prompt: `${question.prompt}\n下列哪一项按顺序填入空格最恰当？`,
+        options: orderedOptions([answerText], singleDistractors(question, sourceQuestions), `${question.id}:single`),
+        answer: answerText,
+        score: 1,
         source: question.source,
         explanation: makeExplanation(question),
         knowledge: question.knowledge,
       });
     }
 
-    const wrongAnswer = stableSample(combinedDistractors(question), 1, `${question.id}:tf`)[0] || '以上说法不正确';
+    if (parts.length >= 2) {
+      const correctShown = parts.length <= 3 ? parts : stableSample(parts, 3, `${question.id}:multiple-correct`);
+      const distractorCount = 4 - correctShown.length;
+      generated.push({
+        id: `${question.id}-multiple`,
+        baseId: question.id,
+        type: 'multiple',
+        typeName: typeLabel('multiple'),
+        section: question.section,
+        prompt: `${question.prompt}\n以下哪些选项属于原题空格的正确答案？`,
+        options: orderedOptions(correctShown, multipleDistractors(question, sourceQuestions, correctShown, distractorCount), `${question.id}:multiple`),
+        answers: correctShown,
+        score: 1.5,
+        source: question.source,
+        explanation: `本题完整答案：${answerText}\n\n${makeExplanation(question)}`,
+        knowledge: question.knowledge,
+      });
+    }
+
     generated.push({
       id: `${question.id}-tf-true`,
       baseId: question.id,
       type: 'truefalse',
       typeName: typeLabel('truefalse'),
       section: question.section,
-      prompt: `判断：${question.prompt} 按顺序填入“${answerText}”是正确的。`,
+      prompt: `判断：${completeStatement(question)}`,
       options: ['正确', '错误'],
       answer: '正确',
       score: 1,
@@ -284,20 +481,24 @@ function createObjectiveQuestions(sourceQuestions) {
       explanation: makeExplanation(question),
       knowledge: question.knowledge,
     });
-    generated.push({
-      id: `${question.id}-tf-false`,
-      baseId: question.id,
-      type: 'truefalse',
-      typeName: typeLabel('truefalse'),
-      section: question.section,
-      prompt: `判断：${question.prompt} 按顺序填入“${wrongAnswer}”是正确的。`,
-      options: ['正确', '错误'],
-      answer: '错误',
-      score: 1,
-      source: question.source,
-      explanation: `该说法错误。正确答案：${answerText}\n\n${makeExplanation(question)}`,
-      knowledge: question.knowledge,
-    });
+
+    const wrongStatement = falseStatement(question, sourceQuestions);
+    if (wrongStatement) {
+      generated.push({
+        id: `${question.id}-tf-false`,
+        baseId: question.id,
+        type: 'truefalse',
+        typeName: typeLabel('truefalse'),
+        section: question.section,
+        prompt: `判断：${wrongStatement}`,
+        options: ['正确', '错误'],
+        answer: '错误',
+        score: 1,
+        source: question.source,
+        explanation: `该说法错误。正确答案：${answerText}\n\n${makeExplanation(question)}`,
+        knowledge: question.knowledge,
+      });
+    }
   }
 
   return generated;

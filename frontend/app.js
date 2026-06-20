@@ -14,6 +14,8 @@ const DEFAULT_DISTRIBUTION = {
   essay: { count: 2, score: 18, label: '论述题' },
 };
 
+const PRACTICE_TYPES = ['single', 'multiple', 'truefalse', 'short', 'essay'];
+
 const state = {
   page: document.body.dataset.page || 'quiz',
   subjects: [],
@@ -148,6 +150,8 @@ function bindEvents() {
   $('#kbSearch')?.addEventListener('input', renderKnowledgeBase);
   $('#kbType')?.addEventListener('change', renderKnowledgeBase);
   $('#kbSection')?.addEventListener('change', renderKnowledgeBase);
+  $('#sourceSearch')?.addEventListener('input', renderSourceViewer);
+  $('#sourceSection')?.addEventListener('change', renderSourceViewer);
 
   $('#quizList')?.addEventListener('click', (event) => {
     const submitButton = event.target.closest('[data-action="submit-objective"]');
@@ -190,6 +194,7 @@ async function loadSubject(subjectId) {
   state.answered = {};
 
   renderStats();
+  renderPracticeTypeFilters();
   renderSectionFilters();
   renderKnowledgeFilters();
   renderExamBlueprint();
@@ -197,6 +202,9 @@ async function loadSubject(subjectId) {
   if (state.page === 'bank') {
     renderKnowledgeBase();
     $('#rawSource').textContent = state.raw;
+  } else if (state.page === 'source') {
+    renderSourceFilters();
+    renderSourceViewer();
   } else {
     resetQuiz(false);
   }
@@ -226,6 +234,23 @@ function renderExamBlueprint() {
     .join('');
 }
 
+function renderPracticeTypeFilters() {
+  const container = $('#typeChecks');
+  if (!container) return;
+  container.innerHTML = PRACTICE_TYPES
+    .map((type) => {
+      const meta = TYPE_META[type];
+      const count = getTypeCount(type);
+      return `
+        <label class="check-pill type-check-pill">
+          <input type="checkbox" value="${escapeHtml(type)}" ${count ? 'checked' : 'disabled'}>
+          <span>${escapeHtml(meta.label)} <strong>${count}</strong></span>
+        </label>
+      `;
+    })
+    .join('');
+}
+
 function renderSectionFilters() {
   const container = $('#sectionChecks');
   if (!container) return;
@@ -248,6 +273,67 @@ function renderKnowledgeFilters() {
     + sections.map((section) => `<option value="${escapeHtml(section)}">${escapeHtml(section)}</option>`).join('');
 }
 
+function parseSourceSections() {
+  const lines = state.raw.split('\n').map((line) => line.trim()).filter(Boolean);
+  const sections = [];
+  let current = { key: 'toc', title: '目录', lines: [] };
+  let reachedBody = false;
+
+  function pushCurrent() {
+    if (current.lines.length) sections.push(current);
+  }
+
+  lines.forEach((line) => {
+    const major = line.match(/^([1-4])\s+(.+)/);
+    const minor = line.match(/^([2-4]\.\d+)\s+(.+)/);
+    const heading = major || minor;
+
+    if (heading && (reachedBody || major)) {
+      reachedBody = true;
+      pushCurrent();
+      current = {
+        key: heading[1],
+        title: `${heading[1]} ${heading[2]}`,
+        lines: [],
+      };
+      return;
+    }
+
+    current.lines.push(line);
+  });
+
+  pushCurrent();
+  return sections;
+}
+
+function renderSourceFilters() {
+  const select = $('#sourceSection');
+  if (!select) return;
+  const sections = parseSourceSections();
+  select.innerHTML = '<option value="all">全部资料</option>'
+    + sections.map((section) => `<option value="${escapeHtml(section.key)}">${escapeHtml(section.title)}</option>`).join('');
+}
+
+function renderSourceViewer() {
+  if (!$('#sourceList')) return;
+  const keyword = $('#sourceSearch')?.value.trim().toLowerCase() || '';
+  const sectionKey = $('#sourceSection')?.value || 'all';
+  const sections = parseSourceSections();
+  const list = sections.filter((section) => {
+    const sectionMatches = sectionKey === 'all' || section.key === sectionKey;
+    const haystack = `${section.title}\n${section.lines.join('\n')}`.toLowerCase();
+    return sectionMatches && (!keyword || haystack.includes(keyword));
+  });
+
+  $('#sourceStats').textContent = `当前显示 ${list.length} / ${sections.length} 段资料。`;
+  $('#sourceList').innerHTML = list.map((section) => `
+    <article class="source-card" id="source-${escapeHtml(section.key)}">
+      <h2>${escapeHtml(section.title)}</h2>
+      <div class="source-text">${formatText(section.lines.join('\n'))}</div>
+    </article>
+  `).join('') || '<div class="empty">没有匹配的资料内容。</div>';
+}
+
 function getDistribution() {
   return state.subject?.examDistribution || DEFAULT_DISTRIBUTION;
 }
@@ -256,10 +342,16 @@ function getEnabledSections() {
   return $$('#sectionChecks input:checked').map((input) => input.value);
 }
 
-function getEligibleQuestions(type = 'all') {
+function getEnabledPracticeTypes() {
+  return $$('#typeChecks input:checked').map((input) => input.value);
+}
+
+function getEligibleQuestions(types = 'all') {
   const enabledSections = getEnabledSections();
+  const requestedTypes = Array.isArray(types) ? types : [types];
+  const allTypes = requestedTypes.includes('all');
   return state.questions.filter((question) => {
-    const typeMatches = type === 'all' || question.type === type;
+    const typeMatches = allTypes || requestedTypes.includes(question.type);
     const sectionMatches = !enabledSections.length || enabledSections.includes(question.section);
     return typeMatches && sectionMatches;
   });
@@ -299,12 +391,19 @@ function generateExam() {
 }
 
 function generatePractice() {
-  const type = $('#typeSelect').value;
-  const eligible = getEligibleQuestions(type);
+  const types = getEnabledPracticeTypes();
+  const eligible = types.length ? getEligibleQuestions(types) : [];
   let count = Math.max(1, Number.parseInt($('#countInput').value || '1', 10));
 
+  if (!types.length) {
+    $('#quizList').innerHTML = '<div class="empty">请至少选择一种练习题型。</div>';
+    $('#quizInfo').textContent = '请至少选择一种练习题型。';
+    updateProgress();
+    return;
+  }
+
   if (!eligible.length) {
-    $('#quizList').innerHTML = '<div class="empty">当前筛选范围没有题目。请至少选择一个章节。</div>';
+    $('#quizList').innerHTML = '<div class="empty">当前筛选范围没有题目。请至少选择一个章节和题型。</div>';
     $('#quizInfo').textContent = '当前筛选范围没有题目。';
     updateProgress();
     return;
@@ -314,7 +413,8 @@ function generatePractice() {
   $('#countInput').value = count;
   state.quiz = sample(eligible, count);
   state.answered = {};
-  renderQuiz(`已生成 ${count} 道随机练习题。`);
+  const typeLabel = types.map((type) => TYPE_META[type]?.label || type).join('、');
+  renderQuiz(`已生成 ${count} 道随机练习题：${typeLabel}。`);
 }
 
 function resetQuiz(updateText = true) {

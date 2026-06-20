@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>资料 - 随机组题复习器</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body data-page="source">
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="title-wrap">
+          <h1>资料原文</h1>
+          <p>直接查看导入题库所依据的复习资料内容。</p>
+        </div>
+        <nav class="top-nav" aria-label="页面导航">
+          <a href="index.html">做题</a>
+          <a href="bank.html">题库</a>
+          <a class="active" href="source.html">资料</a>
+        </nav>
+        <div class="badges" aria-label="题库统计">
+          <span class="badge">总题库 <strong id="totalCount">0</strong></span>
+          <span class="badge">单选 <strong id="singleCount">0</strong></span>
+          <span class="badge">多选 <strong id="multipleCount">0</strong></span>
+          <span class="badge">判断 <strong id="truefalseCount">0</strong></span>
+          <span class="badge">主观 <strong id="subjectiveCount">0</strong></span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel source-panel">
+        <div class="search source-search">
+          <div class="field">
+            <label for="subjectSelect">学科</label>
+            <select id="subjectSelect"></select>
+          </div>
+          <div class="field">
+            <label for="sourceSearch">搜索原文</label>
+            <input id="sourceSearch" type="search" placeholder="搜索章节、题干、答案或关键词">
+          </div>
+          <div class="field">
+            <label for="sourceSection">资料段落</label>
+            <select id="sourceSection"><option value="all">全部资料</option></select>
+          </div>
+        </div>
+        <div id="sourceStats" class="footer-note"></div>
+        <div id="sourceList" class="source-list"></div>
+      </section>
+    </main>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

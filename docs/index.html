@@ -16,6 +16,7 @@
         <nav class="top-nav" aria-label="页面导航">
           <a class="active" href="index.html">做题</a>
           <a href="bank.html">题库</a>
+          <a href="source.html">资料</a>
         </nav>
         <div class="badges" aria-label="题库统计">
           <span class="badge">总题库 <strong id="totalCount">0</strong></span>
@@ -39,15 +40,8 @@
             <input id="countInput" type="number" min="1" step="1" value="10">
           </div>
           <div class="field type-field">
-            <label for="typeSelect">练习题型</label>
-            <select id="typeSelect">
-              <option value="all">全部题型</option>
-              <option value="single">单选题</option>
-              <option value="multiple">多选题</option>
-              <option value="truefalse">判断题</option>
-              <option value="short">简答题</option>
-              <option value="essay">论述题</option>
-            </select>
+            <div class="section-filter-title" id="practiceTypeLabel">练习题型</div>
+            <div id="typeChecks" class="type-checks" aria-labelledby="practiceTypeLabel"></div>
           </div>
           <div class="button-field">
             <button class="btn btn-primary" id="examBtn" type="button">期末模拟卷</button>
