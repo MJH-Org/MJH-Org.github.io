@@ -312,6 +312,15 @@ main {
   width: 100%;
 }
 
+/* 修复：避免 .type-checks 的 display:flex 覆盖下拉菜单隐藏状态 */
+.multi-select .multi-select-menu {
+  display: none;
+}
+
+.multi-select.open .multi-select-menu {
+  display: grid;
+}
+
 .check-pill {
   display: inline-flex;
   align-items: center;
