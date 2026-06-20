@@ -15,6 +15,10 @@ const DEFAULT_DISTRIBUTION = {
 };
 
 const PRACTICE_TYPES = ['single', 'multiple', 'truefalse', 'short', 'essay'];
+const MARK_TYPES = {
+  easy: { label: '简单题', actionLabel: '标记简单', activeLabel: '已标简单' },
+};
+const LOCAL_MARKS_KEY = 'tiku:user-question-marks:v1';
 
 const state = {
   page: document.body.dataset.page || 'quiz',
@@ -26,6 +30,15 @@ const state = {
   quiz: [],
   answered: {},
   apiMode: true,
+  marks: new Map(),
+  marksLoading: false,
+  auth: {
+    enabled: false,
+    ready: false,
+    client: null,
+    user: null,
+    message: '',
+  },
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -67,6 +80,272 @@ async function fetchText(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Request failed: ${response.status}`);
   return response.text();
+}
+
+function getSupabaseConfig() {
+  const config = window.TIKU_SUPABASE || {};
+  const url = String(config.url || '').trim();
+  const anonKey = String(config.anonKey || '').trim();
+  return {
+    url,
+    anonKey,
+    enabled: /^https:\/\/.+\.supabase\.co$/i.test(url) && anonKey.length > 20,
+  };
+}
+
+function currentSubjectId() {
+  return state.subject?.id || '';
+}
+
+function markKey(subjectId, questionId, markType = 'easy') {
+  return `${subjectId}::${questionId}::${markType}`;
+}
+
+function parseMarkKey(key) {
+  const [subjectId, questionId, markType] = String(key).split('::');
+  return { subjectId, questionId, markType };
+}
+
+function readLocalMarks() {
+  try {
+    const raw = window.localStorage.getItem(LOCAL_MARKS_KEY);
+    const items = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(items)) return new Set();
+    return new Set(items.filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeLocalMarks(keys) {
+  window.localStorage.setItem(LOCAL_MARKS_KEY, JSON.stringify([...keys].sort()));
+}
+
+function loadLocalMarksIntoState() {
+  state.marks = readLocalMarks();
+}
+
+function hasMark(questionId, markType = 'easy') {
+  if (!currentSubjectId()) return false;
+  return state.marks.has(markKey(currentSubjectId(), questionId, markType));
+}
+
+function getEasyCount() {
+  if (!currentSubjectId()) return 0;
+  const prefix = `${currentSubjectId()}::`;
+  return [...state.marks].filter((key) => key.startsWith(prefix) && key.endsWith('::easy')).length;
+}
+
+function updateEasyCount() {
+  const count = $('#easyCount');
+  if (count) count.textContent = getEasyCount();
+}
+
+function shouldExcludeEasy() {
+  return Boolean($('#excludeEasy')?.checked);
+}
+
+async function setupSupabase() {
+  loadLocalMarksIntoState();
+  const config = getSupabaseConfig();
+
+  if (!config.enabled) {
+    state.auth.ready = true;
+    state.auth.enabled = false;
+    state.auth.message = '本地标记模式';
+    renderAuthPanel();
+    updateEasyCount();
+    return;
+  }
+
+  state.auth.enabled = true;
+  state.auth.message = '正在连接账户...';
+  renderAuthPanel();
+
+  try {
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    state.auth.client = createClient(config.url, config.anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    });
+
+    const { data, error } = await state.auth.client.auth.getSession();
+    if (error) throw error;
+    state.auth.user = data.session?.user || null;
+    state.auth.ready = true;
+    state.auth.message = state.auth.user ? '账户已连接' : '可登录同步标记';
+
+    state.auth.client.auth.onAuthStateChange(async (_event, session) => {
+      state.auth.user = session?.user || null;
+      state.auth.message = state.auth.user ? '账户已连接' : '可登录同步标记';
+      if (state.auth.user) {
+        await syncLocalMarksToRemote();
+        await loadRemoteMarks();
+      } else {
+        loadLocalMarksIntoState();
+      }
+      renderAuthPanel();
+      refreshRenderedMarks();
+    });
+
+    if (state.auth.user) {
+      await syncLocalMarksToRemote();
+      await loadRemoteMarks();
+    }
+  } catch (error) {
+    console.error(error);
+    state.auth.enabled = false;
+    state.auth.ready = true;
+    state.auth.client = null;
+    state.auth.user = null;
+    state.auth.message = '账户连接失败，已使用本地标记';
+  }
+
+  renderAuthPanel();
+  updateEasyCount();
+}
+
+async function loadRemoteMarks() {
+  if (!state.auth.client || !state.auth.user) return;
+  state.marksLoading = true;
+  try {
+    const { data, error } = await state.auth.client
+      .from('user_question_marks')
+      .select('subject_id, question_id, mark_type')
+      .eq('mark_type', 'easy');
+    if (error) throw error;
+
+    state.marks = new Set((data || []).map((item) => markKey(item.subject_id, item.question_id, item.mark_type)));
+    writeLocalMarks(state.marks);
+  } catch (error) {
+    console.error(error);
+    state.auth.message = '云端标记加载失败，暂用本地记录';
+    loadLocalMarksIntoState();
+  } finally {
+    state.marksLoading = false;
+    updateEasyCount();
+  }
+}
+
+async function syncLocalMarksToRemote() {
+  if (!state.auth.client || !state.auth.user) return;
+  const localMarks = [...readLocalMarks()].map(parseMarkKey)
+    .filter((item) => item.subjectId && item.questionId && item.markType === 'easy')
+    .map((item) => ({
+      user_id: state.auth.user.id,
+      subject_id: item.subjectId,
+      question_id: item.questionId,
+      mark_type: item.markType,
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (!localMarks.length) return;
+  const { error } = await state.auth.client
+    .from('user_question_marks')
+    .upsert(localMarks, { onConflict: 'user_id,subject_id,question_id,mark_type' });
+  if (error) console.error(error);
+}
+
+async function setQuestionMark(questionId, markType, enabled) {
+  if (!currentSubjectId()) return;
+  const key = markKey(currentSubjectId(), questionId, markType);
+  if (enabled) state.marks.add(key);
+  else state.marks.delete(key);
+  writeLocalMarks(state.marks);
+  refreshRenderedMarks(questionId);
+
+  if (!state.auth.client || !state.auth.user) return;
+
+  try {
+    if (enabled) {
+      const { error } = await state.auth.client.from('user_question_marks').upsert({
+        user_id: state.auth.user.id,
+        subject_id: currentSubjectId(),
+        question_id: questionId,
+        mark_type: markType,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,subject_id,question_id,mark_type' });
+      if (error) throw error;
+    } else {
+      const { error } = await state.auth.client
+        .from('user_question_marks')
+        .delete()
+        .eq('user_id', state.auth.user.id)
+        .eq('subject_id', currentSubjectId())
+        .eq('question_id', questionId)
+        .eq('mark_type', markType);
+      if (error) throw error;
+    }
+    state.auth.message = '标记已同步';
+  } catch (error) {
+    console.error(error);
+    state.auth.message = '云端同步失败，本地已保存';
+  } finally {
+    renderAuthPanel();
+  }
+}
+
+async function signInWithEmail() {
+  const email = $('#authEmail')?.value.trim();
+  if (!email || !state.auth.client) return;
+
+  state.auth.message = '正在发送登录邮件...';
+  renderAuthPanel();
+
+  const redirectTo = window.location.href.split('#')[0];
+  const { error } = await state.auth.client.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectTo },
+  });
+
+  state.auth.message = error ? `发送失败：${error.message}` : '登录邮件已发送，请查收邮箱';
+  renderAuthPanel();
+}
+
+async function signOut() {
+  if (!state.auth.client) return;
+  await state.auth.client.auth.signOut();
+}
+
+function renderAuthPanel() {
+  const panel = $('#authPanel');
+  if (!panel) return;
+
+  if (!state.auth.enabled) {
+    panel.innerHTML = `
+      <div class="auth-box">
+        <div class="auth-status">${escapeHtml(state.auth.message || '本地标记模式')}</div>
+      </div>
+    `;
+    return;
+  }
+
+  if (state.auth.user) {
+    const email = state.auth.user.email || '已登录';
+    panel.innerHTML = `
+      <div class="auth-box">
+        <div class="auth-user">
+          <span class="auth-status">${escapeHtml(email)}</span>
+          <button class="btn btn-ghost btn-small" type="button" data-action="sign-out">退出</button>
+        </div>
+        <div class="auth-status">${escapeHtml(state.auth.message || '账户已连接')}</div>
+      </div>
+    `;
+    return;
+  }
+
+  panel.innerHTML = `
+    <div class="auth-box">
+      <div class="auth-form">
+        <input id="authEmail" type="email" autocomplete="email" placeholder="邮箱登录">
+        <button class="btn btn-secondary btn-small" type="button" data-action="sign-in">发送</button>
+      </div>
+      <div class="auth-status">${escapeHtml(state.auth.message || '登录后同步简单题标记')}</div>
+    </div>
+  `;
 }
 
 async function loadSubjects() {
@@ -134,6 +413,7 @@ function setupHeaderAutoHide() {
 async function init() {
   setupHeaderAutoHide();
   bindEvents();
+  await setupSupabase();
 
   try {
     state.subjects = await loadSubjects();
@@ -162,14 +442,38 @@ function bindEvents() {
   $('#sourceSection')?.addEventListener('change', renderSourceViewer);
   $('#typeDropdownBtn')?.addEventListener('click', toggleTypeDropdown);
   $('#typeChecks')?.addEventListener('change', updateTypeSummary);
+  $('#excludeEasy')?.addEventListener('change', () => {
+    if (!shouldExcludeEasy() || !state.quiz.length) return;
+    const nextQuiz = state.quiz.filter((question) => !hasMark(question.id, 'easy'));
+    if (nextQuiz.length !== state.quiz.length) {
+      state.quiz = nextQuiz;
+      renderQuiz('已排除当前题单中的简单题。');
+    }
+  });
 
   document.addEventListener('click', (event) => {
     const dropdown = $('#typeDropdown');
     if (dropdown && !dropdown.contains(event.target)) closeTypeDropdown();
+
+    const signInButton = event.target.closest('[data-action="sign-in"]');
+    if (signInButton) {
+      signInWithEmail();
+      return;
+    }
+
+    const signOutButton = event.target.closest('[data-action="sign-out"]');
+    if (signOutButton) {
+      signOut();
+      return;
+    }
   });
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeTypeDropdown();
+    if (event.key === 'Enter' && event.target?.id === 'authEmail') {
+      event.preventDefault();
+      signInWithEmail();
+    }
   });
 
   $('#quizList')?.addEventListener('click', (event) => {
@@ -182,6 +486,19 @@ function bindEvents() {
     const revealButton = event.target.closest('[data-action="reveal-subjective"]');
     if (revealButton) {
       revealSubjective(revealButton.dataset.id);
+      return;
+    }
+
+    const markButton = event.target.closest('[data-action="toggle-mark"]');
+    if (markButton) {
+      toggleQuestionMark(markButton.dataset.id, markButton.dataset.mark);
+    }
+  });
+
+  $('#kbList')?.addEventListener('click', (event) => {
+    const markButton = event.target.closest('[data-action="toggle-mark"]');
+    if (markButton) {
+      toggleQuestionMark(markButton.dataset.id, markButton.dataset.mark);
     }
   });
 }
@@ -213,6 +530,7 @@ async function loadSubject(subjectId) {
   state.raw = rawText;
   state.quiz = [];
   state.answered = {};
+  updateEasyCount();
 
   renderStats();
   renderPracticeTypeFilters();
@@ -395,7 +713,8 @@ function getEligibleQuestions(types = 'all') {
   return state.questions.filter((question) => {
     const typeMatches = allTypes || requestedTypes.includes(question.type);
     const sectionMatches = !enabledSections.length || enabledSections.includes(question.section);
-    return typeMatches && sectionMatches;
+    const markMatches = !shouldExcludeEasy() || !hasMark(question.id, 'easy');
+    return typeMatches && sectionMatches && markMatches;
   });
 }
 
@@ -480,6 +799,49 @@ function renderQuiz(message) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function renderMarkButton(questionId, markType = 'easy') {
+  const mark = MARK_TYPES[markType];
+  const active = hasMark(questionId, markType);
+  return `
+    <button
+      class="mark-btn ${active ? 'is-active' : ''}"
+      type="button"
+      data-action="toggle-mark"
+      data-id="${escapeHtml(questionId)}"
+      data-mark="${escapeHtml(markType)}"
+      aria-pressed="${active ? 'true' : 'false'}">
+      ${escapeHtml(active ? mark.activeLabel : mark.actionLabel)}
+    </button>
+  `;
+}
+
+async function toggleQuestionMark(questionId, markType = 'easy') {
+  if (!questionId || !MARK_TYPES[markType]) return;
+  await setQuestionMark(questionId, markType, !hasMark(questionId, markType));
+}
+
+function refreshRenderedMarks(questionId = '') {
+  updateEasyCount();
+  const selector = questionId
+    ? `[data-action="toggle-mark"][data-id="${CSS.escape(questionId)}"]`
+    : '[data-action="toggle-mark"]';
+
+  $$(selector).forEach((button) => {
+    const markType = button.dataset.mark || 'easy';
+    const mark = MARK_TYPES[markType];
+    const active = hasMark(button.dataset.id, markType);
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.textContent = active ? mark.activeLabel : mark.actionLabel;
+  });
+
+  if ($('#kbList')) renderKnowledgeBase();
+  if (shouldExcludeEasy() && state.quiz.some((question) => question.id === questionId)) {
+    state.quiz = state.quiz.filter((question) => !hasMark(question.id, 'easy'));
+    renderQuiz('已排除刚标记的简单题。');
+  }
+}
+
 function renderQuestion(question, index) {
   const meta = TYPE_META[question.type] || TYPE_META.short;
   const head = `
@@ -489,6 +851,7 @@ function renderQuestion(question, index) {
         <span class="score-badge">${question.score} 分</span>
         <span class="source">${escapeHtml(question.source)} · ${escapeHtml(question.section)}</span>
       </div>
+      <div class="q-actions">${renderMarkButton(question.id, 'easy')}</div>
     </div>
     <div class="q-title">${index + 1}. ${formatText(question.prompt)}</div>
   `;
@@ -640,7 +1003,10 @@ function renderKnowledgeCard(question) {
         <span class="type-badge ${meta.className}">${meta.label}</span>
         <span class="source">${escapeHtml(question.source)} · ${escapeHtml(question.section)}</span>
       </div>
-      <h3>${formatText(question.prompt)}</h3>
+      <div class="kb-headline">
+        <h3>${formatText(question.prompt)}</h3>
+        ${renderMarkButton(question.id, 'easy')}
+      </div>
       ${question.options?.length ? `<div class="kb-options">${question.options.map((option, index) => `<div>${String.fromCharCode(65 + index)}. ${formatText(option)}</div>`).join('')}</div>` : ''}
       <div class="kb-answer"><strong>答案：</strong>${formatText(answer)}</div>
       ${question.explanation ? `<div class="kb-answer"><strong>题解：</strong>${formatText(question.explanation)}</div>` : ''}

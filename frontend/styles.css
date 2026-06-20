@@ -84,6 +84,47 @@ main {
   gap: 8px;
 }
 
+.auth-panel {
+  display: flex;
+  min-width: 190px;
+  justify-content: flex-end;
+}
+
+.auth-box {
+  display: grid;
+  gap: 8px;
+  width: min(270px, 100%);
+}
+
+.auth-form {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto;
+  gap: 8px;
+}
+
+.auth-form input {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  padding: 7px 9px;
+  font-size: 13px;
+}
+
+.auth-status {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.auth-user {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .top-nav {
   display: flex;
   align-items: center;
@@ -148,7 +189,7 @@ main {
   grid-template-columns: minmax(180px, 260px) minmax(140px, 190px) minmax(220px, 300px) auto;
   grid-template-areas:
     "subject count type actions"
-    "sections sections sections sections";
+    "mark sections sections sections";
   align-items: end;
   gap: 14px 16px;
 }
@@ -243,6 +284,14 @@ main {
   border-top: 1px solid var(--line);
 }
 
+.mark-field {
+  grid-area: mark;
+  align-self: start;
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
 .button-field {
   grid-area: actions;
   display: flex;
@@ -286,6 +335,12 @@ main {
 .btn:hover {
   transform: translateY(-1px);
   filter: brightness(0.98);
+}
+
+.btn-small {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .btn:active {
@@ -346,6 +401,10 @@ main {
 .check-pill strong {
   color: var(--muted);
   font-size: 12px;
+}
+
+.mark-filter-pill {
+  width: fit-content;
 }
 
 .toolbar {
@@ -414,6 +473,38 @@ main {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 10px;
+}
+
+.q-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.mark-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: #344054;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.mark-btn.is-active {
+  border-color: #f7c948;
+  background: #fff7cc;
+  color: #854d0e;
+}
+
+.mark-btn:disabled {
+  cursor: progress;
+  opacity: 0.7;
 }
 
 .q-meta {
@@ -694,6 +785,17 @@ main {
   font-size: 16px;
 }
 
+.kb-headline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kb-headline h3 {
+  flex: 1;
+}
+
 .kb-answer {
   border: 1px dashed #cbd5e1;
   border-radius: var(--radius);
@@ -742,6 +844,11 @@ main {
     justify-content: flex-start;
   }
 
+  .auth-panel {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
   .top-nav {
     order: 3;
   }
@@ -752,6 +859,7 @@ main {
       "subject subject"
       "count type"
       "actions actions"
+      "mark mark"
       "sections sections";
     align-items: start;
   }
@@ -788,6 +896,7 @@ main {
       "count"
       "type"
       "actions"
+      "mark"
       "sections";
   }
 
@@ -816,6 +925,23 @@ main {
 
   .q-head {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .q-actions,
+  .auth-user {
+    justify-content: flex-start;
+  }
+
+  .auth-form {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-box {
+    width: 100%;
+  }
+
+  .kb-headline {
     flex-direction: column;
   }
 

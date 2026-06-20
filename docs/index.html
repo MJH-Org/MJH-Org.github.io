@@ -25,6 +25,7 @@
           <span class="badge">判断 <strong id="truefalseCount">0</strong></span>
           <span class="badge">主观 <strong id="subjectiveCount">0</strong></span>
         </div>
+        <div class="auth-panel" id="authPanel"></div>
       </div>
     </header>
 
@@ -54,6 +55,13 @@
             <button class="btn btn-secondary" id="practiceBtn" type="button">随机练习</button>
             <button class="btn btn-ghost" id="resetBtn" type="button">重置</button>
           </div>
+          <div class="field mark-field">
+            <div class="section-filter-title">题目标记</div>
+            <label class="check-pill mark-filter-pill">
+              <input id="excludeEasy" type="checkbox">
+              <span>排除简单题 <strong id="easyCount">0</strong></span>
+            </label>
+          </div>
           <div class="field section-field">
             <div class="section-filter-title">知识范围</div>
             <div id="sectionChecks" class="section-checks"></div>
@@ -70,6 +78,7 @@
       <section id="quizList" class="quiz-list" aria-live="polite"></section>
     </main>
 
+    <script src="supabase-config.js"></script>
     <script src="app.js" type="module"></script>
   </body>
 </html>
