@@ -452,6 +452,9 @@ function bindEvents() {
   $('#kbSearch')?.addEventListener('input', renderKnowledgeBase);
   $('#kbType')?.addEventListener('change', renderKnowledgeBase);
   $('#kbSection')?.addEventListener('change', renderKnowledgeBase);
+  $('#markedSearch')?.addEventListener('input', renderMarkedQuestions);
+  $('#markedType')?.addEventListener('change', renderMarkedQuestions);
+  $('#markedSection')?.addEventListener('change', renderMarkedQuestions);
   $('#sourceSearch')?.addEventListener('input', renderSourceViewer);
   $('#sourceSection')?.addEventListener('change', renderSourceViewer);
   $('#typeDropdownBtn')?.addEventListener('click', toggleTypeDropdown);
@@ -515,6 +518,13 @@ function bindEvents() {
       toggleQuestionMark(markButton.dataset.id, markButton.dataset.mark);
     }
   });
+
+  $('#markedList')?.addEventListener('click', (event) => {
+    const markButton = event.target.closest('[data-action="toggle-mark"]');
+    if (markButton) {
+      toggleQuestionMark(markButton.dataset.id, markButton.dataset.mark);
+    }
+  });
 }
 
 function renderSubjectOptions() {
@@ -550,11 +560,14 @@ async function loadSubject(subjectId) {
   renderPracticeTypeFilters();
   renderSectionFilters();
   renderKnowledgeFilters();
+  renderMarkedFilters();
   renderExamBlueprint();
 
   if (state.page === 'bank') {
     renderKnowledgeBase();
     $('#rawSource').textContent = state.raw;
+  } else if (state.page === 'marked') {
+    renderMarkedQuestions();
   } else if (state.page === 'source') {
     renderSourceFilters();
     renderSourceViewer();
@@ -652,6 +665,14 @@ function renderSectionFilters() {
 
 function renderKnowledgeFilters() {
   const select = $('#kbSection');
+  if (!select) return;
+  const sections = [...new Set(state.questions.map((item) => item.section))];
+  select.innerHTML = '<option value="all">全部章节</option>'
+    + sections.map((section) => `<option value="${escapeHtml(section)}">${escapeHtml(section)}</option>`).join('');
+}
+
+function renderMarkedFilters() {
+  const select = $('#markedSection');
   if (!select) return;
   const sections = [...new Set(state.questions.map((item) => item.section))];
   select.innerHTML = '<option value="all">全部章节</option>'
@@ -852,6 +873,7 @@ function refreshRenderedMarks(questionId = '') {
   });
 
   if ($('#kbList')) renderKnowledgeBase();
+  if ($('#markedList')) renderMarkedQuestions();
   if (shouldExcludeEasy() && state.quiz.some((question) => question.id === questionId)) {
     state.quiz = state.quiz.filter((question) => !hasMark(question.id, 'easy'));
     renderQuiz('已排除刚标记的简单题。');
@@ -986,28 +1008,45 @@ function updateProgress() {
     : `得分：${earned} / ${objectiveTotal}`;
 }
 
+function questionMatchesFilters(question, { keyword = '', type = 'all', section = 'all' }) {
+  const typeMatches = type === 'all' || question.type === type;
+  const sectionMatches = section === 'all' || question.section === section;
+  const haystack = [
+    question.prompt,
+    question.answer,
+    (question.answers || []).join(' '),
+    question.explanation,
+    question.knowledge,
+    question.section,
+    question.source,
+  ].join('\n').toLowerCase();
+  return typeMatches && sectionMatches && (!keyword || haystack.includes(keyword));
+}
+
 function renderKnowledgeBase() {
   if (!$('#kbList')) return;
   const keyword = $('#kbSearch').value.trim().toLowerCase();
   const type = $('#kbType').value;
   const section = $('#kbSection').value;
-  const list = state.questions.filter((question) => {
-    const typeMatches = type === 'all' || question.type === type;
-    const sectionMatches = section === 'all' || question.section === section;
-    const haystack = [
-      question.prompt,
-      question.answer,
-      (question.answers || []).join(' '),
-      question.explanation,
-      question.knowledge,
-      question.section,
-      question.source,
-    ].join('\n').toLowerCase();
-    return typeMatches && sectionMatches && (!keyword || haystack.includes(keyword));
-  });
+  const list = state.questions.filter((question) => questionMatchesFilters(question, { keyword, type, section }));
 
   $('#kbStats').textContent = `当前显示 ${list.length} / ${state.questions.length} 项。`;
   $('#kbList').innerHTML = list.map(renderKnowledgeCard).join('') || '<div class="empty">没有匹配结果。</div>';
+}
+
+function renderMarkedQuestions() {
+  if (!$('#markedList')) return;
+  const keyword = $('#markedSearch')?.value.trim().toLowerCase() || '';
+  const type = $('#markedType')?.value || 'all';
+  const section = $('#markedSection')?.value || 'all';
+  const marked = state.questions.filter((question) => hasMark(question.id, 'easy'));
+  const list = marked.filter((question) => questionMatchesFilters(question, { keyword, type, section }));
+  const authHint = state.auth.enabled && !state.auth.user
+    ? '登录后会显示云端同步的简单题；当前显示本机记录。'
+    : '可在这里取消简单标记，列表会即时更新。';
+
+  $('#markedStats').textContent = `当前显示 ${list.length} / ${marked.length} 道简单题。${authHint}`;
+  $('#markedList').innerHTML = list.map(renderKnowledgeCard).join('') || '<div class="empty">还没有匹配的简单题。</div>';
 }
 
 function renderKnowledgeCard(question) {

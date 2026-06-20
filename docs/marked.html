@@ -3,20 +3,20 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>题库 - 随机组题复习器</title>
+    <title>简单题 - 随机组题复习器</title>
     <link rel="stylesheet" href="styles.css">
   </head>
-  <body data-page="bank">
+  <body data-page="marked">
     <header class="app-header">
       <div class="header-inner">
         <div class="title-wrap">
-          <h1>题库</h1>
-          <p>查看预生成题型、答案、题解和原始知识点。</p>
+          <h1>简单题</h1>
+          <p>集中查看已标记为简单的题目，可搜索、筛选或取消标记。</p>
         </div>
         <nav class="top-nav" aria-label="页面导航">
           <a href="index.html">做题</a>
-          <a class="active" href="bank.html">题库</a>
-          <a href="marked.html">简单题</a>
+          <a href="bank.html">题库</a>
+          <a class="active" href="marked.html">简单题</a>
           <a href="source.html">资料</a>
         </nav>
         <div class="badges" aria-label="题库统计">
@@ -38,12 +38,12 @@
             <select id="subjectSelect"></select>
           </div>
           <div class="field">
-            <label for="kbSearch">搜索</label>
-            <input id="kbSearch" type="search" placeholder="搜索题干、答案、题解、章节或来源">
+            <label for="markedSearch">搜索简单题</label>
+            <input id="markedSearch" type="search" placeholder="搜索题干、答案、题解、章节或来源">
           </div>
           <div class="field">
-            <label for="kbType">题型</label>
-            <select id="kbType">
+            <label for="markedType">题型</label>
+            <select id="markedType">
               <option value="all">全部题型</option>
               <option value="single">单选题</option>
               <option value="multiple">多选题</option>
@@ -53,18 +53,12 @@
             </select>
           </div>
           <div class="field">
-            <label for="kbSection">章节</label>
-            <select id="kbSection"><option value="all">全部章节</option></select>
+            <label for="markedSection">章节</label>
+            <select id="markedSection"><option value="all">全部章节</option></select>
           </div>
         </div>
-        <div id="kbStats" class="footer-note"></div>
-        <div id="kbList" class="kb-list"></div>
-      </section>
-
-      <section class="panel kb-panel">
-        <h2 class="section-title">原文备份</h2>
-        <p class="footer-note">这里保留复习资料原文，便于核对结构化题库。</p>
-        <pre id="rawSource" class="raw"></pre>
+        <div id="markedStats" class="footer-note"></div>
+        <div id="markedList" class="kb-list"></div>
       </section>
     </main>
 
