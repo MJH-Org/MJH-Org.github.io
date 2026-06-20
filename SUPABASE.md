@@ -23,6 +23,8 @@
   - `https://mjh-org.github.io/**`
   - 本地调试可临时加：`http://localhost:8787/**`
 
+不要把 Site URL 留成 `http://localhost:3000`，否则邮件确认链接可能会回到本机空端口。
+
 ## 3. 填前端配置
 
 在 Supabase 控制台进入 `Project Settings -> API`，复制：
@@ -42,6 +44,7 @@ Copy-Item frontend/supabase-config.local.example.js frontend/supabase-config.loc
 window.TIKU_SUPABASE = {
   url: 'https://你的项目.supabase.co',
   anonKey: '你的 anon/publishable key',
+  redirectUrl: 'http://localhost:8787/',
 };
 ```
 
@@ -50,6 +53,11 @@ window.TIKU_SUPABASE = {
 如果 `frontend/supabase-config.local.js` 不存在，本地开发服务器会使用 `frontend/supabase-config.js` 里的空模板，网站会自动进入本地标记模式，不会连接 Supabase。
 
 线上发布前，确认数据库联调成功后，再把同样的 Project URL 和 publishable key 填入 `frontend/supabase-config.js` 并构建。
+线上配置里的 `redirectUrl` 应该是：
+
+```js
+redirectUrl: 'https://mjh-org.github.io/',
+```
 
 ## 4. 自检
 

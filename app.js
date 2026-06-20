@@ -87,11 +87,22 @@ function getSupabaseConfig() {
   const config = window.TIKU_SUPABASE || {};
   const url = String(config.url || '').trim();
   const anonKey = String(config.anonKey || '').trim();
+  const redirectUrl = String(config.redirectUrl || '').trim();
   return {
     url,
     anonKey,
+    redirectUrl,
     enabled: /^https:\/\/.+\.supabase\.co$/i.test(url) && anonKey.length > 20,
   };
+}
+
+function getAuthRedirectUrl() {
+  const configRedirect = getSupabaseConfig().redirectUrl;
+  if (configRedirect) return configRedirect;
+  const url = new URL(window.location.href);
+  url.hash = '';
+  url.search = '';
+  return url.href;
 }
 
 function currentSubjectId() {
@@ -309,7 +320,7 @@ async function signInWithEmail() {
   state.auth.message = '正在发送登录邮件...';
   renderAuthPanel();
 
-  const redirectTo = window.location.href.split('#')[0];
+  const redirectTo = getAuthRedirectUrl();
   const { error } = await state.auth.client.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: redirectTo },
