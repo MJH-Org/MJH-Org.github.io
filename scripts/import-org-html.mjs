@@ -192,9 +192,17 @@ function unique(items) {
   return [...new Set(items.map((item) => String(item).replace(/[ \t]+/g, ' ').trim()).filter(Boolean))];
 }
 
+function joinAnswerParts(parts) {
+  return parts.join('\uff1b');
+}
+
+function splitAnswerOption(option) {
+  return String(option).split('\uff1b');
+}
+
 function objectiveAnswerText(question) {
   const parts = answerPartsFor(question);
-  return parts.length ? parts.join('；') : String(question.answer || '').trim();
+  return parts.length ? joinAnswerParts(parts) : String(question.answer || '').trim();
 }
 
 function answerPartsFor(question) {
@@ -206,7 +214,7 @@ function partSignature(value) {
   const text = String(value);
   return {
     length: text.length,
-    category: partCategory(text),
+    category: normalizedPartCategory(text),
     hasNumber: /\d/.test(text),
     hasBook: /《|》/.test(text),
     hasSlash: /\/|\+/.test(text),
@@ -216,6 +224,11 @@ function partSignature(value) {
 }
 
 function partCategory(text) {
+  if (['数据', '信息', '知识', '符号', '资料'].includes(text)) return 'concept';
+  if (['SaaS', 'PaaS', 'IaaS'].includes(text)) return 'cloud-model';
+  if (['状态', '转账', '管理', '审核人', '制单人'].includes(text)) return 'field';
+  if (['订单', '货单', '发票', '付款单', '关联', '核对'].includes(text)) return 'document-flow';
+  if (['资源', '事件', '参与者', '账户', '业务'].includes(text)) return 'rea';
   if (/《|》/.test(text)) return 'document';
   if (/财政|税务|审计|部门/.test(text)) return 'organization';
   if (/阶段$/.test(text)) return 'stage';
@@ -234,6 +247,24 @@ function partCategory(text) {
   if (/设计/.test(text)) return 'design';
   if (/初始化/.test(text)) return 'initialization';
   if (/化$/.test(text)) return 'state';
+  return '';
+}
+
+const CLOSED_CATEGORY_VALUES = {
+  concept: ['\u6570\u636e', '\u4fe1\u606f', '\u77e5\u8bc6', '\u7b26\u53f7', '\u8d44\u6599'],
+  'cloud-model': ['SaaS', 'PaaS', 'IaaS'],
+  field: ['\u72b6\u6001', '\u8f6c\u8d26', '\u7ba1\u7406', '\u5ba1\u6838\u4eba', '\u5236\u5355\u4eba'],
+  'document-flow': ['\u8ba2\u5355', '\u8d27\u5355', '\u53d1\u7968', '\u4ed8\u6b3e\u5355', '\u5173\u8054', '\u6838\u5bf9'],
+  rea: ['\u8d44\u6e90', '\u4e8b\u4ef6', '\u53c2\u4e0e\u8005', '\u8d26\u6237', '\u4e1a\u52a1'],
+  code: ['\u987a\u5e8f\u7f16\u7801', '\u4f4d\u6570\u7f16\u7801', '\u5206\u7ec4\u7f16\u7801', '\u79d1\u76ee\u7f16\u7801', '\u5ba2\u6237\u7f16\u7801', '\u5b58\u8d27\u7f16\u7801'],
+  metric: ['\u8026\u5408\u5ea6', '\u5185\u805a\u5ea6', '\u51c6\u786e\u5ea6', '\u5b8c\u6574\u5ea6'],
+  component: ['\u529f\u80fd', '\u6d41\u7a0b', '\u7ed3\u6784', '\u6a21\u5757'],
+};
+
+function normalizedPartCategory(text) {
+  const category = partCategory(text);
+  if (category) return category;
+  if (CLOSED_CATEGORY_VALUES.component.includes(String(text))) return 'component';
   return '';
 }
 
@@ -275,6 +306,12 @@ function syntheticPartDistractors(part) {
   if (/设计/.test(part)) add(['结构设计', '逻辑设计', '概要设计', '详细设计']);
   if (/初始化/.test(part)) add(['系统初始化', '科目初始化', '余额初始化', '期初初始化']);
   if (/化$/.test(part)) add(['制度化', '规范化', '标准化', '信息化', '网络化']);
+  if (['数据', '信息', '知识'].includes(part)) add(['数据', '信息', '知识', '符号', '资料']);
+  if (['SaaS', 'PaaS', 'IaaS'].includes(part)) add(['SaaS', 'PaaS', 'IaaS']);
+  if (['状态', '转账', '管理', '审核人'].includes(part)) add(['状态', '转账', '管理', '审核人', '制单人']);
+  if (['订单', '货单', '发票', '付款单', '关联', '核对'].includes(part)) add(['订单', '货单', '发票', '付款单', '关联', '核对']);
+  if (['资源', '事件', '参与者'].includes(part)) add(['资源', '事件', '参与者', '账户', '业务']);
+  if (part === '功能') add(['功能', '数据', '流程', '结构', '模块']);
 
   return unique(pools).filter((item) => item !== part);
 }
@@ -300,7 +337,7 @@ function rankedCandidates(items, scoreFor, seed) {
 function similarParts(question, sourceQuestions, partIndex, limit = 12) {
   const parts = answerPartsFor(question);
   const current = parts[partIndex] || parts[0] || '';
-  const currentCategory = partCategory(current);
+  const currentCategory = normalizedPartCategory(current);
   const generated = syntheticPartDistractors(current);
   const samePosition = sourceQuestions
     .filter((item) => item.id !== question.id)
@@ -312,11 +349,11 @@ function similarParts(question, sourceQuestions, partIndex, limit = 12) {
     .flatMap(answerPartsFor);
   const pool = [...generated, ...samePosition, ...allParts];
   const sameCategory = currentCategory
-    ? pool.filter((item) => partCategory(item) === currentCategory)
+    ? pool.filter((item) => normalizedPartCategory(item) === currentCategory)
     : [];
 
   const preferred = rankedCandidates(
-    sameCategory.length >= limit ? sameCategory : pool,
+    sameCategory,
     (item) => signatureDistance(current, item),
     `${question.id}:part:${partIndex}`,
   ).slice(0, limit);
@@ -332,9 +369,63 @@ function similarParts(question, sourceQuestions, partIndex, limit = 12) {
   return [...preferred, ...extra];
 }
 
+function closedPartPool(part, sourceQuestions) {
+  const category = normalizedPartCategory(part);
+  if (!category) return [];
+
+  const preset = CLOSED_CATEGORY_VALUES[category] || [];
+  const generated = syntheticPartDistractors(part).filter((item) => normalizedPartCategory(item) === category);
+  const fromSource = sourceQuestions
+    .flatMap(answerPartsFor)
+    .filter((item) => normalizedPartCategory(item) === category);
+
+  return unique([...preset, part, ...generated, ...fromSource]);
+}
+
+function closedCategoryCombinations(question, sourceQuestions, limit = 12) {
+  const parts = answerPartsFor(question);
+  const categories = parts.map(normalizedPartCategory);
+  const candidates = [];
+
+  if (parts.length > 1 && new Set(categories).size === 1 && categories[0]) {
+    for (let offset = 1; offset < parts.length; offset += 1) {
+      candidates.push(joinAnswerParts([...parts.slice(offset), ...parts.slice(0, offset)]));
+    }
+    candidates.push(joinAnswerParts([...parts].reverse()));
+    for (let index = 0; index < parts.length - 1; index += 1) {
+      const next = [...parts];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      candidates.push(joinAnswerParts(next));
+    }
+  }
+
+  parts.forEach((part, partIndex) => {
+    closedPartPool(part, sourceQuestions).forEach((replacement) => {
+      if (replacement === part) return;
+      const next = [...parts];
+      next[partIndex] = replacement;
+      if (new Set(categories).size === 1 && new Set(next).size !== next.length) return;
+      candidates.push(joinAnswerParts(next));
+    });
+  });
+
+  const correct = objectiveAnswerText(question);
+  return rankedCandidates(
+    unique(candidates)
+      .filter((item) => item !== correct)
+      .filter((item) => splitAnswerOption(item).length === parts.length),
+    (item) => optionDistance(parts, splitAnswerOption(item)),
+    `${question.id}:closed-distractors`,
+  ).slice(0, limit);
+}
+
 function singleDistractors(question, sourceQuestions, count = 3) {
   const parts = answerPartsFor(question);
   const correct = objectiveAnswerText(question);
+  const closed = closedCategoryCombinations(question, sourceQuestions, count * 4);
+
+  if (closed.length >= count) return closed.slice(0, count);
+
   const wholeOptions = sourceQuestions
     .filter((item) => item.id !== question.id)
     .filter((item) => answerPartsFor(item).length === parts.length)
@@ -346,32 +437,47 @@ function singleDistractors(question, sourceQuestions, count = 3) {
       if (replacement === part) return;
       const next = [...parts];
       next[partIndex] = replacement;
-      replacements.push(next.join('；'));
+      replacements.push(joinAnswerParts(next));
     });
   });
 
   if (parts.length > 1) {
-    replacements.push([...parts].reverse().join('；'));
+    replacements.push(joinAnswerParts([...parts].reverse()));
   }
 
   return rankedCandidates(
-    [...replacements, ...wholeOptions].filter((item) => item !== correct),
-    (item) => optionDistance(parts, item.split('；')),
+    [...closed, ...replacements, ...wholeOptions]
+      .filter((item) => item !== correct)
+      .filter((item) => splitAnswerOption(item).length === parts.length),
+    (item) => optionDistance(parts, splitAnswerOption(item)),
     `${question.id}:single-distractors`,
   ).slice(0, count);
 }
 
 function multipleDistractors(question, sourceQuestions, correctShown, count) {
   const correctSet = new Set(correctShown);
-  const candidates = correctShown.flatMap((_, index) => similarParts(question, sourceQuestions, index, 10));
+  const parts = answerPartsFor(question);
+  const closed = correctShown.flatMap((answer) => closedPartPool(answer, sourceQuestions));
+  const candidates = correctShown.flatMap((answer, fallbackIndex) => {
+    const index = parts.indexOf(answer);
+    return similarParts(question, sourceQuestions, index >= 0 ? index : fallbackIndex, 10);
+  });
   const fallback = sourceQuestions
     .filter((item) => item.id !== question.id)
     .flatMap(answerPartsFor);
 
-  return rankedCandidates(
-    [...candidates, ...fallback].filter((item) => !correctSet.has(item)),
+  const preferred = rankedCandidates(
+    [...closed, ...candidates].filter((item) => !correctSet.has(item)),
     (item) => Math.min(...correctShown.map((answer) => signatureDistance(answer, item))),
     `${question.id}:multiple-distractors`,
+  );
+
+  if (preferred.length >= count) return preferred.slice(0, count);
+
+  return rankedCandidates(
+    [...preferred, ...fallback].filter((item) => !correctSet.has(item)),
+    (item) => Math.min(...correctShown.map((answer) => signatureDistance(answer, item))),
+    `${question.id}:multiple-distractors:fallback`,
   ).slice(0, count);
 }
 

@@ -192,6 +192,50 @@ main {
   grid-area: type;
 }
 
+.multi-select {
+  position: relative;
+}
+
+.multi-select-button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 15px;
+  text-align: left;
+}
+
+.multi-select-arrow {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.multi-select-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: none;
+  width: min(320px, 92vw);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 10px;
+}
+
+.multi-select.open .multi-select-menu {
+  display: grid;
+}
+
 .section-field {
   grid-area: sections;
   margin-top: 2px;
@@ -258,6 +302,14 @@ main {
 
 .type-checks {
   min-height: 44px;
+}
+
+.multi-select-menu.type-checks {
+  align-items: stretch;
+}
+
+.multi-select-menu .check-pill {
+  width: 100%;
 }
 
 .check-pill {

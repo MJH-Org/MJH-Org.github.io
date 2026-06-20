@@ -21,6 +21,7 @@ const state = {
   subjects: [],
   subject: null,
   questions: [],
+  sourceItems: [],
   raw: '',
   quiz: [],
   answered: {},
@@ -83,6 +84,13 @@ async function loadSubjectQuestions(subject) {
     return fetchJson(`/api/subjects/${encodeURIComponent(subject.id)}/questions`);
   }
   return fetchJson(`data/${subject.questionFile}`);
+}
+
+async function loadSubjectSource(subject) {
+  if (state.apiMode) {
+    return fetchJson(`/api/subjects/${encodeURIComponent(subject.id)}/source`);
+  }
+  return subject.sourceQuestionFile ? fetchJson(`data/${subject.sourceQuestionFile}`) : [];
 }
 
 async function loadSubjectRaw(subject) {
@@ -152,6 +160,17 @@ function bindEvents() {
   $('#kbSection')?.addEventListener('change', renderKnowledgeBase);
   $('#sourceSearch')?.addEventListener('input', renderSourceViewer);
   $('#sourceSection')?.addEventListener('change', renderSourceViewer);
+  $('#typeDropdownBtn')?.addEventListener('click', toggleTypeDropdown);
+  $('#typeChecks')?.addEventListener('change', updateTypeSummary);
+
+  document.addEventListener('click', (event) => {
+    const dropdown = $('#typeDropdown');
+    if (dropdown && !dropdown.contains(event.target)) closeTypeDropdown();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeTypeDropdown();
+  });
 
   $('#quizList')?.addEventListener('click', (event) => {
     const submitButton = event.target.closest('[data-action="submit-objective"]');
@@ -183,12 +202,14 @@ async function loadSubject(subjectId) {
   $('#subjectSelect').value = subjectId;
   if ($('#quizInfo')) $('#quizInfo').textContent = '正在加载题库...';
 
-  const [questions, rawText] = await Promise.all([
+  const [questions, sourceItems, rawText] = await Promise.all([
     loadSubjectQuestions(subject),
+    loadSubjectSource(subject),
     loadSubjectRaw(subject),
   ]);
 
   state.questions = questions;
+  state.sourceItems = sourceItems;
   state.raw = rawText;
   state.quiz = [];
   state.answered = {};
@@ -249,6 +270,38 @@ function renderPracticeTypeFilters() {
       `;
     })
     .join('');
+  updateTypeSummary();
+}
+
+function toggleTypeDropdown() {
+  const dropdown = $('#typeDropdown');
+  const button = $('#typeDropdownBtn');
+  if (!dropdown || !button) return;
+  const nextOpen = !dropdown.classList.contains('open');
+  dropdown.classList.toggle('open', nextOpen);
+  button.setAttribute('aria-expanded', String(nextOpen));
+}
+
+function closeTypeDropdown() {
+  const dropdown = $('#typeDropdown');
+  const button = $('#typeDropdownBtn');
+  if (!dropdown || !button) return;
+  dropdown.classList.remove('open');
+  button.setAttribute('aria-expanded', 'false');
+}
+
+function updateTypeSummary() {
+  const summary = $('#typeSummary');
+  if (!summary) return;
+  const checked = getEnabledPracticeTypes();
+  const enabled = $$('#typeChecks input:not(:disabled)').map((input) => input.value);
+  if (!checked.length) {
+    summary.textContent = '请选择题型';
+  } else if (checked.length === enabled.length) {
+    summary.textContent = '全部题型';
+  } else {
+    summary.textContent = checked.map((type) => TYPE_META[type]?.label || type).join('、');
+  }
 }
 
 function renderSectionFilters() {
@@ -274,62 +327,51 @@ function renderKnowledgeFilters() {
 }
 
 function parseSourceSections() {
-  const lines = state.raw.split('\n').map((line) => line.trim()).filter(Boolean);
-  const sections = [];
-  let current = { key: 'toc', title: '目录', lines: [] };
-  let reachedBody = false;
-
-  function pushCurrent() {
-    if (current.lines.length) sections.push(current);
-  }
-
-  lines.forEach((line) => {
-    const major = line.match(/^([1-4])\s+(.+)/);
-    const minor = line.match(/^([2-4]\.\d+)\s+(.+)/);
-    const heading = major || minor;
-
-    if (heading && (reachedBody || major)) {
-      reachedBody = true;
-      pushCurrent();
-      current = {
-        key: heading[1],
-        title: `${heading[1]} ${heading[2]}`,
-        lines: [],
-      };
-      return;
-    }
-
-    current.lines.push(line);
-  });
-
-  pushCurrent();
-  return sections;
+  return state.sourceItems.map((item, index) => ({
+    ...item,
+    key: item.id || `source-${index}`,
+    label: item.type === 'choice' ? '客观知识点' : '问答题',
+    title: item.type === 'choice' ? item.source : item.prompt,
+    body: item.type === 'choice' ? item.knowledge : `${item.prompt}\n${item.answer}`,
+  }));
 }
 
 function renderSourceFilters() {
   const select = $('#sourceSection');
   if (!select) return;
-  const sections = parseSourceSections();
+  const sections = [...new Set(parseSourceSections().map((item) => item.section))];
   select.innerHTML = '<option value="all">全部资料</option>'
-    + sections.map((section) => `<option value="${escapeHtml(section.key)}">${escapeHtml(section.title)}</option>`).join('');
+    + sections.map((section) => `<option value="${escapeHtml(section)}">${escapeHtml(section)}</option>`).join('');
 }
 
 function renderSourceViewer() {
   if (!$('#sourceList')) return;
   const keyword = $('#sourceSearch')?.value.trim().toLowerCase() || '';
   const sectionKey = $('#sourceSection')?.value || 'all';
-  const sections = parseSourceSections();
-  const list = sections.filter((section) => {
-    const sectionMatches = sectionKey === 'all' || section.key === sectionKey;
-    const haystack = `${section.title}\n${section.lines.join('\n')}`.toLowerCase();
+  const items = parseSourceSections();
+  const list = items.filter((item) => {
+    const sectionMatches = sectionKey === 'all' || item.section === sectionKey;
+    const haystack = [
+      item.label,
+      item.title,
+      item.body,
+      item.answer,
+      item.prompt,
+      item.source,
+      item.section,
+    ].join('\n').toLowerCase();
     return sectionMatches && (!keyword || haystack.includes(keyword));
   });
 
-  $('#sourceStats').textContent = `当前显示 ${list.length} / ${sections.length} 段资料。`;
-  $('#sourceList').innerHTML = list.map((section) => `
-    <article class="source-card" id="source-${escapeHtml(section.key)}">
-      <h2>${escapeHtml(section.title)}</h2>
-      <div class="source-text">${formatText(section.lines.join('\n'))}</div>
+  $('#sourceStats').textContent = `当前显示 ${list.length} / ${items.length} 条资料。`;
+  $('#sourceList').innerHTML = list.map((item) => `
+    <article class="source-card" id="source-${escapeHtml(item.key)}">
+      <div class="q-meta">
+        <span class="type-badge ${item.type === 'choice' ? 'type-single' : 'type-short'}">${escapeHtml(item.label)}</span>
+        <span class="source">${escapeHtml(item.source)} · ${escapeHtml(item.section)}</span>
+      </div>
+      <h2>${formatText(item.title)}</h2>
+      <div class="source-text">${formatText(item.body)}</div>
     </article>
   `).join('') || '<div class="empty">没有匹配的资料内容。</div>';
 }

@@ -41,7 +41,13 @@
           </div>
           <div class="field type-field">
             <div class="section-filter-title" id="practiceTypeLabel">练习题型</div>
-            <div id="typeChecks" class="type-checks" aria-labelledby="practiceTypeLabel"></div>
+            <div class="multi-select" id="typeDropdown">
+              <button class="multi-select-button" id="typeDropdownBtn" type="button" aria-expanded="false" aria-controls="typeChecks">
+                <span id="typeSummary">全部题型</span>
+                <span class="multi-select-arrow" aria-hidden="true">▾</span>
+              </button>
+              <div id="typeChecks" class="type-checks multi-select-menu" aria-labelledby="practiceTypeLabel"></div>
+            </div>
           </div>
           <div class="button-field">
             <button class="btn btn-primary" id="examBtn" type="button">期末模拟卷</button>

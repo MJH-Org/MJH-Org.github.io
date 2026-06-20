@@ -135,6 +135,15 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (action === 'source') {
+    if (!subject.sourceQuestionFile) {
+      sendJson(res, 200, []);
+      return;
+    }
+    sendJson(res, 200, await readJson(subject.sourceQuestionFile));
+    return;
+  }
+
   if (action === 'random') {
     const questions = filterQuestions(await readJson(subject.questionFile), url.searchParams);
     const requestedCount = Number(url.searchParams.get('count') || 10);
