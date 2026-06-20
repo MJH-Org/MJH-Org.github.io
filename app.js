@@ -30,8 +30,9 @@ const state = {
   quiz: [],
   answered: {},
   apiMode: true,
-  marks: new Map(),
+  marks: new Set(),
   marksLoading: false,
+  pendingMarks: new Set(),
   auth: {
     enabled: false,
     ready: false,
@@ -118,7 +119,11 @@ function readLocalMarks() {
 }
 
 function writeLocalMarks(keys) {
-  window.localStorage.setItem(LOCAL_MARKS_KEY, JSON.stringify([...keys].sort()));
+  try {
+    window.localStorage.setItem(LOCAL_MARKS_KEY, JSON.stringify([...keys].sort()));
+  } catch (error) {
+    console.warn('Unable to persist local marks', error);
+  }
 }
 
 function loadLocalMarksIntoState() {
@@ -252,12 +257,19 @@ async function syncLocalMarksToRemote() {
 async function setQuestionMark(questionId, markType, enabled) {
   if (!currentSubjectId()) return;
   const key = markKey(currentSubjectId(), questionId, markType);
+  state.pendingMarks.add(key);
+  refreshRenderedMarks(questionId);
+
   if (enabled) state.marks.add(key);
   else state.marks.delete(key);
   writeLocalMarks(state.marks);
   refreshRenderedMarks(questionId);
 
-  if (!state.auth.client || !state.auth.user) return;
+  if (!state.auth.client || !state.auth.user) {
+    state.pendingMarks.delete(key);
+    refreshRenderedMarks(questionId);
+    return;
+  }
 
   try {
     if (enabled) {
@@ -284,6 +296,8 @@ async function setQuestionMark(questionId, markType, enabled) {
     console.error(error);
     state.auth.message = '云端同步失败，本地已保存';
   } finally {
+    state.pendingMarks.delete(key);
+    refreshRenderedMarks(questionId);
     renderAuthPanel();
   }
 }
@@ -830,9 +844,11 @@ function refreshRenderedMarks(questionId = '') {
     const markType = button.dataset.mark || 'easy';
     const mark = MARK_TYPES[markType];
     const active = hasMark(button.dataset.id, markType);
+    const pending = state.pendingMarks.has(markKey(currentSubjectId(), button.dataset.id, markType));
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
-    button.textContent = active ? mark.activeLabel : mark.actionLabel;
+    button.disabled = pending;
+    button.textContent = pending ? '同步中...' : (active ? mark.activeLabel : mark.actionLabel);
   });
 
   if ($('#kbList')) renderKnowledgeBase();

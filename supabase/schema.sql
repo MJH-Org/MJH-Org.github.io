@@ -16,6 +16,24 @@ create table if not exists public.user_question_marks (
 create index if not exists user_question_marks_lookup_idx
 on public.user_question_marks (user_id, subject_id, mark_type);
 
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists set_user_question_marks_updated_at
+on public.user_question_marks;
+
+create trigger set_user_question_marks_updated_at
+before update on public.user_question_marks
+for each row
+execute function public.set_updated_at();
+
 alter table public.user_question_marks enable row level security;
 
 drop policy if exists "users can read own question marks"
